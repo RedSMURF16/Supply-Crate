@@ -1,0 +1,18 @@
+[en] -- RedSMURF
+CRATE_CHAT_TAG          = ^4[SUPPLY CRATE]^1
+CRATE_CHAT_LIMIT        = You've reached the maximum number of crates
+CRATE_CHAT_NO_CRATE     = There are no crates available
+CRATE_CHAT_NO_DATA      = Crates data hasn't been found
+CRATE_CHAT_SAVED        = Crates data has been saved successfully
+
+CRATE_MENU_TITLE        = \yChoose your option:
+CRATE_ROOT_CREATE       = Create Crate
+CRATE_ROOT_REMOVE       = Remove Crate
+CRATE_ROOT_SAVE         = Save Data
+CRATE_NAV_NEXT          = Next
+CRATE_NAV_BACK          = Back
+CRATE_NAV_REMOVE        = Remove Crate
+CRATE_NAV_REMOVE_ALL    = Remove All Crates
+CRATE_ROTATE_RIGHT      = Turn Right
+CRATE_ROTATE_LEFT       = Turn Left
+CRATE_ROTATE_PLACE      = Place Crate
