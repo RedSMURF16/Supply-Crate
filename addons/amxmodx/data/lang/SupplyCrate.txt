@@ -1,0 +1,39 @@
+[en] -- RedSMURF
+CRATE_CHAT_TAG              = ^4[SUPPLY CRATE]^1
+CRATE_CHAT_LIMIT            = You've reached the maximum number of Supply Crates ^4%d
+CRATE_CHAT_NO_CRATE         = There are no Supply Crates available
+CRATE_CHAT_NO_DATA          = Supply Crates data hasn't been found
+CRATE_CHAT_CREATE_NEW       = ^3%s ^1created
+CRATE_CHAT_TOGGLE_CURRENT   = ^3%s ^1is %L
+CRATE_CHAT_TOGGLE_ALL_ON    = All Supply Crates activated
+CRATE_CHAT_TOGGLE_ALL_OFF   = All Supply Crates deactivated
+CRATE_CHAT_REMOVE_CURRENT   = ^3%s ^1removed
+CRATE_CHAT_REMOVE_ALL       = All Supply Crates removed
+CRATE_CHAT_SAVE             = Supply Crates data saved in ^4%s
+
+CRATE_CHAT_ACTIVATED        = activated
+CRATE_CHAT_DEACTIVATED      = deactivated
+
+CRATE_MENU_TITLE            = \dSupply Crate - Version \y2.1
+CRATE_MENU_TITLE_PAGE       = \yPage:\r
+CRATE_ROOT_CREATE           = Create Supply Crate
+CRATE_ROOT_TOGGLE           = Toggle Supply Crate
+CRATE_ROOT_REMOVE           = Remove Supply Crate
+CRATE_ROOT_ROTATE           = Rotate Supply Crate
+CRATE_ROOT_SAVE             = Save Data
+
+CRATE_ON                    = \y[ON]
+CRATE_OFF                   = \r[OFF]
+CRATE_NAV_NEXT              = Next
+CRATE_NAV_BACK              = Back
+
+CRATE_TOGGLE_CURRENT        = Toggle Supply Crate >> %s%s %L
+CRATE_TOGGLE_ALL_ON         = Activate All Supply Crates
+CRATE_TOGGLE_ALL_OFF        = Deactivate All Supply Crates
+
+CRATE_REMOVE_CURRENT        = Remove Supply Crate >> %s%s
+CRATE_REMOVE_ALL            = Remove All Supply Crates
+
+CRATE_ROTATE_RIGHT          = Turn Right
+CRATE_ROTATE_LEFT           = Turn Left
+CRATE_ROTATE_PLACE          = Place Crate
