@@ -350,7 +350,7 @@ new Array:g_aCrate,
 
 public plugin_init()
 {
-    register_plugin("TESTTT", PLUGIN_VERSION, "RedSMURF")
+    register_plugin("Supply Crate", PLUGIN_VERSION, "RedSMURF")
 
     register_clcmd("say /sc",               "cmdMenu", ADMIN_RCON)
     register_clcmd("say_team /sc",          "cmdMenu", ADMIN_RCON)
