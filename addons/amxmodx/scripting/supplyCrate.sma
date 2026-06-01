@@ -72,26 +72,18 @@
     #define MAX_PLATFORM_PATH_LENGTH 256
 #endif
 
-#define MAX_ENT                 32
-#define MEMBER_ACTIVE_WEAPON    373
-#define MEMBER_AMMO_TYPE        49
-#define MATERIAL_METAL          "2"
+#define MAX_ENT             32
+#define MEMBER_AMMO_TYPE    49
+#define TASK_ACTION         8421
+#define BREAK_FLAG_METAL    2
+#define CRATE_KEY           8421
+#define CRATE_ARRAY_ITEM    pev_iuser1
 
 /**
  *  Crate animation sequences.
  */
 #define CRATE_SEQ_IDLE          0
 #define CRATE_SEQ_OPENCLOSE     1
-
-/**
- *  Crate Bitflag sounds.
- */
-#define CRATE_SOUND_PLACE       (1 << 0)
-#define CRATE_SOUND_EMPTY       (1 << 1)
-#define CRATE_SOUND_REMOVE      (1 << 2)
-#define CRATE_SOUND_SUPPLY      (1 << 3)
-#define CRATE_SOUND_SELL        (1 << 4)
-#define CRATE_SOUND_REFILL      (1 << 5)
 
 /**
  *  Crate Bitflag Armor.
@@ -125,28 +117,30 @@ enum
 
 enum
 {
-    STATE_VALID,
-    STATE_INVALID,
-    STATE_ACTIVE,
-    STATE_INACTIVE
+    FLAG_BREAK          = (1 << 0),
+    FLAG_EXPLODE        = (1 << 1),
+    FLAG_SOUND          = (1 << 2),
+
+    FLAG_SHOW           = (1 << 3),
+    FLAG_DEAD           = (1 << 4),
+    FLAG_GHOST          = (1 << 5),
+    FLAG_VALID          = (1 << 6),
+    FLAG_SELECT         = (1 << 7)
 }
 
 enum
 {
-    FLAG_BREAK   = (1 << 0),
-    FLAG_EXPLODE = (1 << 1),
-
-    FLAG_SELECT  = (1 << 2),
-    FLAG_DUMMY   = (1 << 3),
-    FLAG_SPAWN   = (1 << 4)
-}
-
-enum
-{
-    TEAM_DISABLED,
-    TEAM_TERRORIST,
+    TEAM_NONE,
+    TEAM_T,
     TEAM_CT,
     TEAM_BOTH
+}
+
+enum
+{
+    SPAWN_NEVER,
+    SPAWN_DELAY,
+    SPAWN_ROUND_START
 }
 
 enum
@@ -159,19 +153,42 @@ enum
 enum _:MAIN_SETTINGS
 {
     SETTING_DEFAULT_MODEL[MAX_RESOURCE_PATH_LENGTH],
+    SETTING_DEFAULT_GIB[MAX_RESOURCE_PATH_LENGTH],
+    SETTING_DEFAULT_CLASS,
+    SETTING_DEFAULT_FLAGS,
+    SETTING_DEFAULT_TEAM,
+    SETTING_DEFAULT_SOUND,
+    SETTING_DEFAULT_MODE,
+    SETTING_DEFAULT_SPAWN_MODE,
+    Float:SETTING_DEFAULT_SPAWN[2],
+    Float:SETTING_DEFAULT_SPAWN_CHANCE,
+    Float:SETTING_DEFAULT_DELAY,
+    Float:SETTING_DEFAULT_CAPACITY,
+    Float:SETTING_DEFAULT_CAPACITY_MAX,
+    Float:SETTING_DEFAULT_REFILL,
+    Float:SETTING_DEFAULT_HEALTH,
+    Float:SETTING_DEFAULT_EXPLODE_DAMAGE,
+    Float:SETTING_DEFAULT_EXPLODE_RADIUS,
     Float:SETTING_MINS[3],
     Float:SETTING_MAXS[3],
 
     bool:SETTING_CRATE_LOAD,
+    bool:SETTING_CRATE_ACTION,
     Float:SETTING_CRATE_RANGE,
     Float:SETTING_OFFSET_BASE,
-    Float:SETTING_OFFSET_MIN,
-    Float:SETTING_OFFSET_MAX,
+    Float:SETTING_OFFSET[2],
     Float:SETTING_OFFSET_STEP,
     Float:SETTING_OFFSET_FREQ,
     Float:SETTING_GHOST_FREQ,
     SETTING_GHOST_ALPHA,
 
+    Float:SETTING_BREAK_VELO_Z[2],
+    SETTING_BREAK_VELO_RANDOM[2],
+    SETTING_BREAK_COUNT[2],
+    SETTING_BREAK_LIFE[2],
+
+    SETTING_SPRITE_ZEROGXPLODE,
+    Array:SETTING_SOUND_METAL,
     SETTING_SOUND_PLACE[MAX_RESOURCE_PATH_LENGTH],
     SETTING_SOUND_EMPTY[MAX_RESOURCE_PATH_LENGTH],
     SETTING_SOUND_REMOVE[MAX_RESOURCE_PATH_LENGTH],
@@ -180,6 +197,7 @@ enum _:MAIN_SETTINGS
     SETTING_SOUND_REFILL[MAX_RESOURCE_PATH_LENGTH],
     SETTING_SOUND_MENU_NAV[MAX_RESOURCE_PATH_LENGTH],
     SETTING_SOUND_MENU_REMOVE[MAX_RESOURCE_PATH_LENGTH],
+    SETTING_SOUND_MENU_ALERT[MAX_RESOURCE_PATH_LENGTH],
 
     SETTING_COLOR_ACTIVE[3],
     SETTING_COLOR_INACTIVE[3]
@@ -196,7 +214,7 @@ enum _:CRATE
     CRATE_CLASS,
     CRATE_TEAM,
     CRATE_MODE,
-    CRATE_SOUND_FLAGS,
+    CRATE_FLAGS,
     CRATE_OCCUPIED,
     Float:CRATE_ORIGIN[3],
     Float:CRATE_ANGLES[3],
@@ -245,48 +263,84 @@ enum
 
 enum
 {
+    SOUND_MENU_NAV,
+    SOUND_MENU_REMOVE,
+    SOUND_MENU_ALERT,
+
     SOUND_PLACE,
     SOUND_EMPTY,
     SOUND_REMOVE,
     SOUND_SUPPLY,
     SOUND_SELL,
-    SOUND_REFILL,
-    SOUND_MENU_NAV,
-    SOUND_MENU_REMOVE
+    SOUND_REFILL
 }
 
 enum
 {
     MENU_ROOT,
     MENU_CREATE,
-    MENU_TOGGLE,
     MENU_REMOVE,
+    MENU_SHOW,
+    MENU_TEAM,
+    MENU_SPAWN,
     MENU_ROTATE
 }
 
 enum
 {
     ROOT_CREATE,
-    ROOT_TOGGLE,
     ROOT_REMOVE,
-    ROOT_SAVE
-}
+    ROOT_SAVE,
 
-enum
-{
-    TOGGLE_NEXT,
-    TOGGLE_BACK,
-    TOGGLE_CURRENT,
-    TOGGLE_ALL_ON,
-    TOGGLE_ALL_OFF
+    ROOT_NOCLIP = 4,
+    ROOT_GODMODE,
+
+    ROOT_SHOW = 7,
+    ROOT_TEAM,
+    ROOT_SPAWN
 }
 
 enum
 {
     REMOVE_NEXT,
     REMOVE_BACK,
-    REMOVE_CURRENT,
+
+    REMOVE_CURRENT = 3,
     REMOVE_ALL
+}
+
+enum
+{
+    SHOW_NEXT,
+    SHOW_BACK,
+
+    SHOW_CURRENT = 3,
+    SHOW_ALL_HIDE,
+    SHOW_ALL_SHOW,
+    SHOW_ALL_DEFAULT
+}
+
+enum
+{
+    TEAM_NEXT,
+    TEAM_BACK,
+
+    TEAM_CURRENT = 3,
+    TEAM_ALL_NONE,
+    TEAM_ALL_T,
+    TEAM_ALL_CT,
+    TEAM_ALL_BOTH
+}
+
+enum
+{
+    SPAWN_NEXT,
+    SPAWN_BACK,
+
+    SPAWN_CURRENT = 3,
+    SPAWN_ALL_NEVER,
+    SPAWN_ALL_DELAY,
+    SPAWN_ALL_ROUND_START
 }
 
 enum
@@ -322,16 +376,18 @@ new const g_iWeaponMarket[] =
     2350
 }
 
-new g_szMenuHandler[][MAX_VALUE_LENGTH] =
+new g_szMenuHandler[][] =
 {
     "menuHandlerRoot",
     "menuHandlerCreate",
-    "menuHandlerToggle",
     "menuHandlerRemove",
+    "menuHandlerShow",
+    "menuHandlerTeam",
+    "menuHandlerSpawn",
     "menuHandlerRotate"
 }
 
-new g_szCN[][MAX_VALUE_LENGTH] =
+new g_szCN[][32] =
 {
     "SC_Ammo",
     "SC_Grenades",
@@ -346,7 +402,8 @@ new Array:g_aCrate,
     bool:g_bFileWasRead = false,
     g_iCrate,
     g_iCrateConfig,
-    g_iAmmoPickup
+    g_iAmmoPickup,
+    g_iMaxPlayers
 
 public plugin_init()
 {
@@ -363,9 +420,9 @@ public plugin_init()
 
     register_forward(FM_UpdateClientData, "fwdUpdateClientData", 1)
     register_forward(FM_AddToFullPack, "fwdAddToFullPack", 1)
-    RegisterHam(Ham_Spawn, "func_breakable", "fwdSpawn", 1)
-    RegisterHam(Ham_TakeDamage, "func_breakable", "fwdTakeDamage", 0)
-    RegisterHam(Ham_TraceAttack, "func_breakable", "fwdTraceAttack", 1)
+    RegisterHam(Ham_Spawn, "info_target", "fwdSpawn", 1)
+    RegisterHam(Ham_TakeDamage, "info_target", "fwdTakeDamage", 0)
+    RegisterHam(Ham_TraceAttack, "info_target", "fwdTraceAttack", 1)
     RegisterHam(Ham_Player_PreThink, "player", "fwdPreThink", 0)
     RegisterHam(Ham_Killed, "player", "fwdKilled", 1)
 
@@ -374,8 +431,11 @@ public plugin_init()
 
     g_iAmmoPickup = get_user_msgid("AmmoPickup")
 
-    set_task(g_eSettings[SETTING_GHOST_FREQ], "crateTask", .flags = "b")
+    if ( g_eSettings[SETTING_CRATE_ACTION] )
+        set_task(g_eSettings[SETTING_GHOST_FREQ], "crateTask", .flags = "b")
+
     crateInit()
+    g_iMaxPlayers = get_maxplayers(s)
 }
 
 public plugin_precache()
@@ -421,6 +481,24 @@ public cmdMenu(id, iLevel, iCmd)
 {
     if ( !cmd_access(id, iLevel, iCmd, 1) )
         return PLUGIN_HANDLED
+
+    crateSound(id, SOUND_MENU_NAV)
+    crateMenu(id, MENU_ROOT)
+
+    return PLUGIN_HANDLED
+}
+
+public cmdMenu(id, iLevel, iCmd)
+{
+    if ( !cmd_access(id, iLevel, iCmd, 1)
+    || !is_user_alive(id) )
+        return PLUGIN_HANDLED
+
+    if ( !g_eSettings[SETTING_CRATE_ACTION] )
+    {
+        client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_NO_ACTION")
+        return PLUGIN_HANDLED
+    }
 
     crateSound(id, SOUND_MENU_NAV)
     crateMenu(id, MENU_ROOT)
@@ -594,7 +672,6 @@ ReadFile()
                         eCrate[CRATE_CLASS]          = CLASS_AMMO
                         eCrate[CRATE_TEAM]           = TEAM_BOTH
                         eCrate[CRATE_MODE]           = CRATE_FLAG_VEST
-                        eCrate[CRATE_SOUND_FLAGS]    = CRATE_SOUND_PLACE | CRATE_SOUND_EMPTY | CRATE_SOUND_REMOVE | CRATE_SOUND_SUPPLY | CRATE_SOUND_SELL | CRATE_SOUND_REFILL
                         eCrate[CRATE_COOLDOWN]       = 2.5
                         eCrate[CRATE_CAPACITY]       = 10.0
                         eCrate[CRATE_FRAMERATE]      = 1.0
@@ -641,6 +718,74 @@ ReadFile()
                             copy(g_eSettings[SETTING_DEFAULT_MODEL], charsmax(g_eSettings[SETTING_DEFAULT_MODEL]), szValue)
                             if ( !g_bFileWasRead ) precache_model(g_eSettings[SETTING_DEFAULT_MODEL])
                         }
+                        else if ( equali(szKey, "SETTING_DEFAULT_GIB") )
+                        {
+                            if ( !g_bFileWasRead )
+                                g_eSettings[SETTING_DEFAULT_GIB] = precache_model(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_CLASS") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_CLASS] = str_to_num(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_FLAGS") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_FLAGS] = read_flags(szValue)
+                            g_eSettings[SETTING_DEFAULT_FLAGS] &= 7
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_TEAM") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_TEAM] = str_to_num(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_SOUND") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_SOUND] = str_to_num(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_MODE") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_MODE] = str_to_num(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_SPAWN_MODE") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_SPAWN_MODE] = str_to_num(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_SPAWN") )
+                        {
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_DEFAULT_SPAWN][0] = str_to_float(szKey)
+                            g_eSettings[SETTING_DEFAULT_SPAWN][1] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_SPAWN_CHANCE") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_DELAY") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_DELAY] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_CAPACITY") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_CAPACITY] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_CAPACITY_MAX") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_CAPACITY_MAX] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_REFILL") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_REFILL] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_HEALTH") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_HEALTH] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_EXPLODE_DAMAGE") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_EXPLODE_RADIUS") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS] = str_to_float(szValue)
+                        }
                         else if ( equali(szKey, "SETTING_MINS") )
                         {
                             strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
@@ -671,9 +816,11 @@ ReadFile()
                         {
                             g_eSettings[SETTING_OFFSET_BASE] = str_to_float(szValue)
                         }
-                        else if ( equali(szKey, "SETTING_OFFSET_MIN") )
+                        else if ( equali(szKey, "SETTING_OFFSET") )
                         {
-                            g_eSettings[SETTING_OFFSET_MIN] = str_to_float(szValue)
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_OFFSET][0] = str_to_float(szKey)
+                            g_eSettings[SETTING_OFFSET][0] = str_to_float(szValue)
                         }
                         else if ( equali(szKey, "SETTING_OFFSET_MAX") )
                         {
@@ -690,6 +837,35 @@ ReadFile()
                         else if ( equali(szKey, "SETTING_GHOST_ALPHA") )
                         {
                             g_eSettings[SETTING_GHOST_ALPHA] = str_to_num(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_BREAK_VELO_Z") )
+                        {
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_BREAK_VELO_Z][0] = str_to_float(szKey)
+                            g_eSettings[SETTING_BREAK_VELO_Z][1] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_BREAK_VELO_RANDOM") )
+                        {
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_BREAK_VELO_RANDOM][0] = str_to_num(szKey)
+                            g_eSettings[SETTING_BREAK_VELO_RANDOM][1] = str_to_num(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_BREAK_COUNT") )
+                        {
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_BREAK_COUNT][0] = str_to_num(szKey)
+                            g_eSettings[SETTING_BREAK_COUNT][1] = str_to_num(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_BREAK_LIFE") )
+                        {
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_BREAK_LIFE][0] = str_to_num(szKey)
+                            g_eSettings[SETTING_BREAK_LIFE][1] = str_to_num(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_SPRITE_ZEROGXPLODE") )
+                        {
+                            if ( !g_bFileWasRead )
+                                g_eSettings[SETTING_SPRITE_ZEROGXPLODE] = precache_model(szValue)
                         }
                         else if ( equali(szKey, "SETTING_GHOST_FREQ") )
                         {
@@ -774,7 +950,7 @@ ReadFile()
                         else if ( equali(szKey, "CRATE_TEAM") )
                         {
                             eCrate[CRATE_TEAM] = str_to_num(szValue)
-                            eCrate[CRATE_TEAM] = clamp(eCrate[CRATE_TEAM], TEAM_DISABLED, TEAM_BOTH)
+                            eCrate[CRATE_TEAM] = clamp(eCrate[CRATE_TEAM], TEAM_NONE, TEAM_BOTH)
                         }
                         else if ( equali(szKey, "CRATE_MODE") )
                         {
@@ -784,12 +960,7 @@ ReadFile()
                         else if ( equali(szKey, "CRATE_FLAGS") )
                         {
                             eCrate[CRATE_FLAGS] = read_flags(szValue)
-                            eCrate[CRATE_FLAGS] &= 3
-                        }
-                        else if ( equali(szKey, "CRATE_SOUND_FLAGS") )
-                        {
-                            eCrate[CRATE_SOUND_FLAGS] = read_flags(szValue)
-                            eCrate[CRATE_SOUND_FLAGS] &= 127
+                            eCrate[CRATE_FLAGS] &= 7
                         }
                         else if ( equali(szKey, "CRATE_COOLDOWN") )
                         {
@@ -1362,7 +1533,7 @@ public crateTask()
             eCrate[CRATE_NEXT_REFILL] = 0.0
             eCrate[CRATE_NEXT_USE] = get_gametime() + 0.1
 
-            if ( eCrate[CRATE_SOUND_FLAGS] & CRATE_SOUND_REFILL )
+            if ( eCrate[CRATE_FLAGS] & FLAG_SOUND )
                 crateSound(eCrate[CRATE_ID], SOUND_REFILL, false)
         }
         else if ( eCrate[CRATE_OCCUPIED]
@@ -1403,7 +1574,7 @@ stock crateDummy(eCrate[CRATE], iItem)
 stock crateCreate(id, iItem)
 {
     new iEnt
-    iEnt = engfunc(EngFunc_CreateNamedEntity, engfunc(EngFunc_AllocString, "func_breakable"))
+    iEnt = engfunc(EngFunc_CreateNamedEntity, engfunc(EngFunc_AllocString, "info_target"))
 
     if ( !pev_valid(iEnt) )
         return
@@ -1822,7 +1993,7 @@ stock crateUse(id)
 stock bool:crateAllow(id, eCrate[CRATE])
 {
     new iWeaponID
-    iWeaponID = cs_get_weapon_id(get_pdata_cbase(id, MEMBER_ACTIVE_WEAPON))
+    iWeaponID = cs_get_user_weapon(id)
 
     if ( iWeaponID == CSW_KNIFE || iWeaponID == CSW_C4 )    return false
     else if ( eCrate[CRATE_WEAPON_MODE] == WEAPON_ONLY )    return eCrate[CRATE_WEAPON_LIST][iWeaponID]
@@ -1854,7 +2025,7 @@ stock crateSupply(id, eCrate[CRATE], iItem)
         }
     }
     else if ( get_gametime() >= eCrate[CRATE_NEXT_EMPTY]
-    && eCrate[CRATE_SOUND_FLAGS] & CRATE_SOUND_EMPTY )
+    && eCrate[CRATE_FLAGS] & FLAG_SOUND )
     {
         eCrate[CRATE_NEXT_EMPTY] = get_gametime() + 1.0
         crateSound(eCrate[CRATE_ID], SOUND_EMPTY, false)
@@ -1891,11 +2062,11 @@ supplyAmmo(id, eCrate[CRATE])
         if ( !iClip )
             client_cmd(id, "+attack; wait; -attack;")
 
-        if ( eCrate[CRATE_SOUND_FLAGS] & CRATE_SOUND_SUPPLY )
+        if ( eCrate[CRATE_FLAGS] & FLAG_SOUND )
             crateSound(id, SOUND_SUPPLY)
     }
     else if ( get_gametime() >= eCrate[CRATE_NEXT_EMPTY]
-    && eCrate[CRATE_SOUND_FLAGS] & CRATE_SOUND_EMPTY )
+    && eCrate[CRATE_FLAGS] & FLAG_SOUND )
     {
         eCrate[CRATE_NEXT_EMPTY] = get_gametime() + 1.0
         crateSound(eCrate[CRATE_ID], SOUND_EMPTY, false)
@@ -1916,7 +2087,7 @@ supplyGrenades(id, eCrate[CRATE])
     eCrate[CRATE_NEXT_USE] = get_gametime() + eCrate[CRATE_COOLDOWN]
     crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_OPENCLOSE, eCrate[CRATE_FRAMERATE])
 
-    if ( eCrate[CRATE_SOUND_FLAGS] & CRATE_SOUND_SUPPLY )
+    if ( eCrate[CRATE_FLAGS] & FLAG_SOUND )
         crateSound(id, SOUND_SUPPLY)
 }
 
@@ -1934,11 +2105,11 @@ supplyMarket(id, eCrate[CRATE])
         eCrate[CRATE_NEXT_USE] = get_gametime() + eCrate[CRATE_COOLDOWN]
         crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_OPENCLOSE, eCrate[CRATE_FRAMERATE])
 
-        if ( eCrate[CRATE_SOUND_FLAGS] & CRATE_SOUND_SELL )
+        if ( eCrate[CRATE_FLAGS] & FLAG_SOUND )
             crateSound(id, SOUND_SELL)
     }
     else if ( get_gametime() >= eCrate[CRATE_NEXT_EMPTY]
-    && eCrate[CRATE_SOUND_FLAGS] & CRATE_SOUND_EMPTY )
+    && eCrate[CRATE_FLAGS] & FLAG_SOUND )
     {
         eCrate[CRATE_NEXT_EMPTY] = get_gametime() + 1.0
         crateSound(eCrate[CRATE_ID], SOUND_EMPTY, false)
@@ -2034,18 +2205,18 @@ stock crateSetAnim(eCrate[CRATE], bool:bPlaySound = true)
             eCrate[CRATE_CAPACITY] = 0.0
             eCrate[CRATE_NEXT_REFILL] = get_gametime() + eCrate[CRATE_DELAY]
 
-            if ( bPlaySound && (eCrate[CRATE_SOUND_FLAGS] & CRATE_SOUND_EMPTY) )
+            if ( bPlaySound && (eCrate[CRATE_FLAGS] & FLAG_SOUND) )
                 crateSound(eCrate[CRATE_ID], SOUND_EMPTY, false)
         }
         else
         {
-            if ( bPlaySound && (eCrate[CRATE_SOUND_FLAGS] & CRATE_SOUND_PLACE) )
+            if ( bPlaySound && (eCrate[CRATE_FLAGS] & FLAG_SOUND) )
                 crateSound(eCrate[CRATE_ID], SOUND_PLACE, false)
         }
     }
     else
     {
-        if ( bPlaySound && (eCrate[CRATE_SOUND_FLAGS] & CRATE_SOUND_EMPTY) )
+        if ( bPlaySound && (eCrate[CRATE_FLAGS] & FLAG_SOUND) )
             crateSound(eCrate[CRATE_ID], SOUND_EMPTY, false)
     }
 }
@@ -2074,26 +2245,28 @@ stock crateSetSeq(iEnt, iSequence, Float:fFrameRate)
     set_pev(iEnt, pev_animtime, get_gametime())
 }
 
-stock crateSound(iEnt, iSound, bool:bPlayer = true)
+stock crateSound(iEnt, iSound, iChan = CHAN_ITEM, bool:bPlayer = true, iFlags = 0)
 {
     new szSample[64]
 
     switch( iSound )
     {
-        case SOUND_PLACE:       copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_PLACE])
-        case SOUND_EMPTY:       copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_EMPTY])
-        case SOUND_REMOVE:      copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_REMOVE])
-        case SOUND_SUPPLY:      copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_SUPPLY])
-        case SOUND_SELL:        copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_SELL])
-        case SOUND_REFILL:      copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_REFILL])
-        case SOUND_MENU_NAV:    copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_NAV])
-        case SOUND_MENU_REMOVE: copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_REMOVE])
+        case SOUND_MENU_NAV:        copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_NAV])
+        case SOUND_MENU_REMOVE:     copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_REMOVE])
+        case SOUND_MENU_ALERT:      copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_ALERT])
+        case SOUND_PLACE:           copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_PLACE])
+        case SOUND_EMPTY:           copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_EMPTY])
+        case SOUND_REMOVE:          copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_REMOVE])
+        case SOUND_SUPPLY:          copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_SUPPLY])
+        case SOUND_SELL:            copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_SELL])
+        case SOUND_REFILL:          copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_REFILL])
+        case SOUND_METAL:           ArrayGetString(g_eSettings[SETTING_SOUND_METAL],    random(ArraySize(g_eSettings[SETTING_SOUND_METAL])),    szSample, charsmax(szSample))
     }
 
     if ( bPlayer )
         client_cmd(iEnt, "spk %s", szSample)
     else
-        engfunc(EngFunc_EmitSound, iEnt, CHAN_ITEM, szSample, VOL_NORM, ATTN_NORM, 0, PITCH_NORM)
+        engfunc(EngFunc_EmitSound, iEnt, iChan, szSample, VOL_NORM, ATTN_NORM, iFlags, PITCH_NORM)
 }
 
 stock bool:crateRadius(eCrate[CRATE])
@@ -2208,7 +2381,7 @@ stock ammoPickup(id, iAmount)
     new iActiveWeapon,
         iAmmoType
 
-    iActiveWeapon = get_pdata_cbase(id, MEMBER_ACTIVE_WEAPON)
+    iActiveWeapon = cs_get_user_weapon_entity(id)
     iAmmoType = get_pdata_int(iActiveWeapon, MEMBER_AMMO_TYPE)
 
     message_begin(MSG_ONE_UNRELIABLE, g_iAmmoPickup, .player = id)
@@ -2233,7 +2406,7 @@ stock marketSell(id, iWeapon, eCrate[CRATE])
 
     iMoney = cs_get_user_money(id)
     iMoney += floatround(g_iWeaponMarket[iWeapon] * eCrate[CRATE_FACTOR])
-    iActiveWeapon = get_pdata_cbase(id, MEMBER_ACTIVE_WEAPON)
+    iActiveWeapon = cs_get_user_weapon_entity(id)
 
     switch( isGrenade(iActiveWeapon) )
     {
