@@ -74,7 +74,6 @@
 
 #define MAX_ENT             32
 #define MEMBER_AMMO_TYPE    49
-#define TASK_ACTION         8421
 #define BREAK_FLAG_METAL    2
 #define CRATE_KEY           8421
 #define CRATE_ARRAY_ITEM    pev_iuser1
@@ -188,7 +187,6 @@ enum _:MAIN_SETTINGS
     Float:SETTING_MAXS[3],
 
     bool:SETTING_CRATE_LOAD,
-    bool:SETTING_CRATE_ACTION,
     Float:SETTING_CRATE_RANGE,
     Float:SETTING_OFFSET_BASE,
     Float:SETTING_OFFSET[2],
@@ -459,8 +457,7 @@ public plugin_init()
     g_iAmmoPickup = get_user_msgid("AmmoPickup")
     g_iWeapPickup = get_user_msgid("WeapPickup")
 
-    if ( g_eSettings[SETTING_CRATE_ACTION] )
-        set_task(g_eSettings[SETTING_GHOST_FREQ], "crateTask", TASK_ACTION, .flags = "b")
+    set_task(g_eSettings[SETTING_GHOST_FREQ], "crateTask", .flags = "b")
 
     crateInit()
     g_iMaxPlayers = get_maxplayers()
@@ -494,12 +491,6 @@ public cmdMenu(id, iLevel, iCmd)
     if ( !cmd_access(id, iLevel, iCmd, 1)
     || !is_user_alive(id) )
         return PLUGIN_HANDLED
-
-    if ( !g_eSettings[SETTING_CRATE_ACTION] )
-    {
-        client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_NO_ACTION")
-        return PLUGIN_HANDLED
-    }
 
     crateSound(id, SOUND_MENU_NAV)
     crateMenu(id, MENU_ROOT)
@@ -800,10 +791,6 @@ stock ReadFile()
                         {
                             g_eSettings[SETTING_CRATE_LOAD] = bool:str_to_num(szValue)
                         }
-                        else if ( equali(szKey, "SETTING_CRATE_ACTION") )
-                        {
-                            g_eSettings[SETTING_CRATE_ACTION] = bool:str_to_num(szValue)
-                        }
                         else if ( equali(szKey, "SETTING_CRATE_RANGE") )
                         {
                             g_eSettings[SETTING_CRATE_RANGE] = str_to_float(szValue)
@@ -1087,17 +1074,6 @@ stock ReadFile()
         ArrayPushArray(g_aCrateConfig, eCrate)
     else
         set_fail_state("No crates were found in the configuration file.")
-
-    if ( g_bFileWasRead )
-    {
-        if ( g_eSettings[SETTING_CRATE_ACTION] )
-        {
-            if ( !task_exists(TASK_ACTION) )
-                set_task(g_eSettings[SETTING_GHOST_FREQ], "crateTask", TASK_ACTION, .flags = "b")
-        }
-        else
-            remove_task(TASK_ACTION)
-    }
 
     g_bFileWasRead = true
     fclose(iFile)
