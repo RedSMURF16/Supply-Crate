@@ -74,7 +74,6 @@
 
 #define MAX_ENT             32
 #define MEMBER_AMMO_TYPE    49
-#define TASK_ACTION         8421
 #define BREAK_FLAG_METAL    2
 #define CRATE_KEY           8421
 #define CRATE_ARRAY_ITEM    pev_iuser1
@@ -104,7 +103,7 @@
 #define CRATE_FLAG_FB2          (1 << 4)
 #define CRATE_FLAG_SMOKE        (1 << 5)
 
-new const PLUGIN_VERSION[]          = "2.3"
+new const PLUGIN_VERSION[]          = "2.4"
 new const Float:DELAY_ON_CONNECT    = 1.0
 new const ERROR_FILE[]              = "SupplyCrate_ERRORS.log"
 
@@ -126,6 +125,13 @@ enum
     FLAG_GHOST          = (1 << 5),
     FLAG_VALID          = (1 << 6),
     FLAG_SELECT         = (1 << 7)
+}
+
+enum
+{
+    SHOW_DEFAULT,
+    SHOW_FORCE_HIDE,
+    SHOW_FORCE_SHOW
 }
 
 enum
@@ -159,21 +165,28 @@ enum _:MAIN_SETTINGS
     SETTING_DEFAULT_TEAM,
     SETTING_DEFAULT_SOUND,
     SETTING_DEFAULT_MODE,
+
     SETTING_DEFAULT_SPAWN_MODE,
     Float:SETTING_DEFAULT_SPAWN[2],
     Float:SETTING_DEFAULT_SPAWN_CHANCE,
-    Float:SETTING_DEFAULT_DELAY,
-    Float:SETTING_DEFAULT_CAPACITY,
-    Float:SETTING_DEFAULT_CAPACITY_MAX,
+
     Float:SETTING_DEFAULT_REFILL,
+    Float:SETTING_DEFAULT_COOLDOWN,
+    Float:SETTING_DEFAULT_CAPACITY,
+    Float:SETTING_DEFAULT_DELAY_ACTIVE,
+
     Float:SETTING_DEFAULT_HEALTH,
+    SETTING_DEFAULT_ARMOR,
+    Float:SETTING_DEFAULT_FACTOR,
+    Float:SETTING_DEFAULT_FACTOR_MAX,
     Float:SETTING_DEFAULT_EXPLODE_DAMAGE,
     Float:SETTING_DEFAULT_EXPLODE_RADIUS,
+    SETTING_DEFAULT_WEAPON_MODE,
+
     Float:SETTING_MINS[3],
     Float:SETTING_MAXS[3],
 
     bool:SETTING_CRATE_LOAD,
-    bool:SETTING_CRATE_ACTION,
     Float:SETTING_CRATE_RANGE,
     Float:SETTING_OFFSET_BASE,
     Float:SETTING_OFFSET[2],
@@ -207,33 +220,38 @@ enum _:CRATE
 {
     CRATE_ID,
     CRATE_ITEM,
-    CRATE_STATE,
-    CRATE_FLAGS,
-    CRATE_NAME[MAX_VALUE_LENGTH],
-    CRATE_MODEL[MAX_RESOURCE_PATH_LENGTH],
     CRATE_CLASS,
+    CRATE_FLAGS,
+    CRATE_SHOW,
     CRATE_TEAM,
     CRATE_MODE,
-    CRATE_FLAGS,
-    CRATE_OCCUPIED,
+    CRATE_NAME[MAX_VALUE_LENGTH],
+    CRATE_MODEL[MAX_RESOURCE_PATH_LENGTH],
+
     Float:CRATE_ORIGIN[3],
     Float:CRATE_ANGLES[3],
-    Float:CRATE_DECAL[3],
     Float:CRATE_MINS[3],
     Float:CRATE_MAXS[3],
+
+    Float:CRATE_REFILL,
     Float:CRATE_COOLDOWN,
     Float:CRATE_CAPACITY,
-    Float:CRATE_CAPACITY_MAX,
     Float:CRATE_FRAMERATE,
-    Float:CRATE_REFILL,
-    Float:CRATE_DELAY,
+    Float:CRATE_CAPACITY_MAX,
+    Float:CRATE_DELAY_ACTIVE,
+
+    CRATE_SPAWN_MODE,
+    Float:CRATE_SPAWN[2],
+    Float:CRATE_SPAWN_CHANCE,
+    Float:CRATE_NEXT_SPAWN,
+
     Float:CRATE_HEALTH,
     CRATE_ARMOR,
     Float:CRATE_FACTOR,
     Float:CRATE_FACTOR_MAX,
-    Float:CRATE_SPAWN_CHANCE,
     Float:CRATE_EXPLODE_DAMAGE,
     Float:CRATE_EXPLODE_RADIUS,
+
     Float:CRATE_NEXT_USE,
     Float:CRATE_NEXT_EMPTY,
     Float:CRATE_NEXT_REFILL,
@@ -249,6 +267,7 @@ enum _:PLAYER_DATA
     PDATA_ADMIN_FLAGS,
     PDATA_CRATE_GHOST,
     PDATA_CRATE_MENU,
+    PDATA_CRATE_USE,
     bool:PDATA_CRATE_ACTION,
     Float:PDATA_OFFSET,
     Float:PDATA_NEXT_OFFSET
@@ -272,7 +291,8 @@ enum
     SOUND_REMOVE,
     SOUND_SUPPLY,
     SOUND_SELL,
-    SOUND_REFILL
+    SOUND_REFILL,
+    SOUND_METAL
 }
 
 enum
@@ -389,21 +409,28 @@ new g_szMenuHandler[][] =
 
 new g_szCN[][32] =
 {
-    "SC_Ammo",
-    "SC_Grenades",
-    "SC_Market"
+    "supplyCrate_ammo",
+    "supplyCrate_grenades",
+    "supplyCrate_market"
 }
 
 new Array:g_aCrate,
     Array:g_aCrateConfig,
     g_eSettings[MAIN_SETTINGS],
     g_ePlayerData[MAX_PLAYERS + 1][PLAYER_DATA],
-    g_szFileName[MAX_RESOURCE_PATH_LENGTH],
     bool:g_bFileWasRead = false,
     g_iCrate,
     g_iCrateConfig,
-    g_iAmmoPickup,
+    g_iAmmoPickup, g_iWeapPickup,
     g_iMaxPlayers
+
+new g_szShow[][] = {"CRATE_DEFAULT", "CRATE_HIDDEN", "CRATE_SHOWN"}
+new g_szShowChat[][] = {"CRATE_CHAT_DEFAULT", "CRATE_CHAT_HIDDEN", "CRATE_CHAT_SHOWN"}
+new g_szShowColor[][] = {"\d", "\r", "\y"}
+new g_szTeam[][] = {"CRATE_NONE", "CRATE_T", "CRATE_CT", "CRATE_BOTH"}
+new g_szTeamChat[][] = {"CRATE_CHAT_NONE", "CRATE_CHAT_T", "CRATE_CHAT_CT", "CRATE_CHAT_BOTH"}
+new g_szSpawn[][] = {"CRATE_NEVER", "CRATE_DELAY", "CRATE_ROUND_START"}
+new g_szSpawnChat[][] = {"CRATE_CHAT_NEVER", "CRATE_CHAT_DELAY", "CRATE_CHAT_ROUND_START"}
 
 public plugin_init()
 {
@@ -421,27 +448,26 @@ public plugin_init()
     register_forward(FM_UpdateClientData, "fwdUpdateClientData", 1)
     register_forward(FM_AddToFullPack, "fwdAddToFullPack", 1)
     RegisterHam(Ham_Spawn, "info_target", "fwdSpawn", 1)
-    RegisterHam(Ham_TakeDamage, "info_target", "fwdTakeDamage", 0)
+    RegisterHam(Ham_TakeDamage, "info_target", "fwdTakeDamage")
     RegisterHam(Ham_TraceAttack, "info_target", "fwdTraceAttack", 1)
-    RegisterHam(Ham_Player_PreThink, "player", "fwdPreThink", 0)
+    RegisterHam(Ham_Player_PreThink, "player", "fwdPreThink")
     RegisterHam(Ham_Killed, "player", "fwdKilled", 1)
 
-    register_event("HLTV", "eventHLTV", "a", "1=0", "2=0")
     register_logevent("eventRoundStart", 2, "1=Round_Start")
-
     g_iAmmoPickup = get_user_msgid("AmmoPickup")
+    g_iWeapPickup = get_user_msgid("WeapPickup")
 
-    if ( g_eSettings[SETTING_CRATE_ACTION] )
-        set_task(g_eSettings[SETTING_GHOST_FREQ], "crateTask", .flags = "b")
+    set_task(g_eSettings[SETTING_GHOST_FREQ], "crateTask", .flags = "b")
 
     crateInit()
-    g_iMaxPlayers = get_maxplayers(s)
+    g_iMaxPlayers = get_maxplayers()
 }
 
 public plugin_precache()
 {
     g_aCrate       = ArrayCreate(CRATE)
     g_aCrateConfig = ArrayCreate(CRATE)
+    g_eSettings[SETTING_SOUND_METAL] = ArrayCreate(MAX_RESOURCE_PATH_LENGTH)
 
     precache_model("models/metalplategibs.mdl")
     precache_sound("debris/metal1.wav")
@@ -457,35 +483,7 @@ public plugin_end()
 {
     ArrayDestroy(g_aCrate)
     ArrayDestroy(g_aCrateConfig)
-}
-
-public plugin_cfg()
-{
-    if ( !g_iCrate )
-        return PLUGIN_CONTINUE
-
-    new eCrate[CRATE]
-    for ( new i = 0; i < g_iCrate; i ++ )
-    {
-        ArrayGetArray(g_aCrate, i, eCrate)
-        eCrate[CRATE_FLAGS] |= FLAG_SPAWN
-
-        ArraySetArray(g_aCrate, i, eCrate)
-        crateKill(eCrate[CRATE_ID])
-    }
-
-    return PLUGIN_CONTINUE
-}
-
-public cmdMenu(id, iLevel, iCmd)
-{
-    if ( !cmd_access(id, iLevel, iCmd, 1) )
-        return PLUGIN_HANDLED
-
-    crateSound(id, SOUND_MENU_NAV)
-    crateMenu(id, MENU_ROOT)
-
-    return PLUGIN_HANDLED
+    ArrayDestroy(g_eSettings[SETTING_SOUND_METAL])
 }
 
 public cmdMenu(id, iLevel, iCmd)
@@ -493,12 +491,6 @@ public cmdMenu(id, iLevel, iCmd)
     if ( !cmd_access(id, iLevel, iCmd, 1)
     || !is_user_alive(id) )
         return PLUGIN_HANDLED
-
-    if ( !g_eSettings[SETTING_CRATE_ACTION] )
-    {
-        client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_NO_ACTION")
-        return PLUGIN_HANDLED
-    }
 
     crateSound(id, SOUND_MENU_NAV)
     crateMenu(id, MENU_ROOT)
@@ -534,94 +526,53 @@ public client_command(id)
     return PLUGIN_CONTINUE
 }
 
-public eventHLTV()
-{
-    if ( !g_iCrate )
-        return PLUGIN_CONTINUE
-
-    new eCrate[CRATE]
-    for ( new i = 0; i < g_iCrate; i ++ )
-    {
-        ArrayGetArray(g_aCrate, i, eCrate)
-
-        if ( eCrate[CRATE_FLAGS] & FLAG_DUMMY )
-        {
-            if ( eCrate[CRATE_SPAWN_CHANCE] >= random_float(0.0, 1.0) )
-                eCrate[CRATE_FLAGS] |= FLAG_SPAWN
-        }
-        else
-        {
-            eCrate[CRATE_FLAGS] |= FLAG_SPAWN
-        }
-
-        ArraySetArray(g_aCrate, i, eCrate)
-        crateKill(eCrate[CRATE_ID])
-    }
-
-    return PLUGIN_CONTINUE
-}
-
 public eventRoundStart()
 {
     if ( !g_iCrate )
         return PLUGIN_HANDLED
 
-    new eCrateOld[CRATE], eCrateNew[CRATE],
-        iCrate
+    new eCrate[CRATE]
 
-    iCrate = g_iCrate
-    for ( new i = 0; i < iCrate; i ++ )
+    for ( new i = 0; i < g_iCrate; i ++ )
     {
-        ArrayGetArray(g_aCrate, i, eCrateOld)
+        ArrayGetArray(g_aCrate, i, eCrate)
 
-        if ( eCrateOld[CRATE_FLAGS] & FLAG_SPAWN )
+        if ( eCrate[CRATE_FLAGS] & FLAG_SHOW
+        || eCrate[CRATE_SHOW] != SHOW_DEFAULT
+        || eCrate[CRATE_SPAWN_MODE] != SPAWN_ROUND_START )
+            continue
+
+        if ( eCrate[CRATE_SPAWN_CHANCE] >= random_float(0.0, 1.0) )
         {
-            crateCreate(0, eCrateOld[CRATE_ITEM])
-            ArrayGetArray(g_aCrate, g_iCrate - 1, eCrateNew)
-
-            xs_vec_copy(eCrateOld[CRATE_ORIGIN], eCrateNew[CRATE_ORIGIN])
-            xs_vec_copy(eCrateOld[CRATE_ANGLES], eCrateNew[CRATE_ANGLES])
-            xs_vec_copy(eCrateOld[CRATE_DECAL], eCrateNew[CRATE_DECAL])
-            set_pev(eCrateNew[CRATE_ID], pev_origin, eCrateNew[CRATE_ORIGIN])
-            set_pev(eCrateNew[CRATE_ID], pev_angles, eCrateNew[CRATE_ANGLES])
-            eCrateNew[CRATE_STATE] = STATE_ACTIVE
-
-            crateSetBox(eCrateNew)
-            crateSetAnim(eCrateNew)
-            crateSetActive(eCrateNew)
-            ArraySetArray(g_aCrate, g_iCrate - 1, eCrateNew)
+            eCrate[CRATE_FLAGS] |= FLAG_SHOW
+            crateState(eCrate, true, true)
         }
         else
         {
-            crateDummy(eCrateOld, i)
+            eCrate[CRATE_FLAGS] &= ~FLAG_SHOW
+            crateState(eCrate, false, false)
         }
-    }
 
-    for ( new i = 0; i < iCrate; i ++ )
-    {
-        ArrayGetArray(g_aCrate, 0, eCrateOld)
-
-        if ( eCrateOld[CRATE_FLAGS] & FLAG_SPAWN )
-            crateRemove(0)
+        ArraySetArray(g_aCrate, i, eCrate)
     }
 
     return PLUGIN_HANDLED
 }
 
-ReadFile()
+stock ReadFile()
 {
     if ( g_bFileWasRead )
     {
-        new iPlayers[MAX_PLAYERS], iNum
-        get_players(iPlayers, iNum, "ch")
+        for ( new id = 1; id <= g_iMaxPlayers; id ++ )
+            if ( is_user_connected(id))
+                UpdateData(id)
 
-        for ( new i = 0; i < iNum; i ++ )
-            UpdateData(iPlayers[i])
-
+        ArrayClear(g_eSettings[SETTING_SOUND_METAL])
         ArrayClear(g_aCrateConfig)
         g_iCrateConfig = 0
     }
 
+    new g_szFileName[MAX_RESOURCE_PATH_LENGTH]
     get_configsdir(g_szFileName, charsmax(g_szFileName))
     add(g_szFileName, charsmax(g_szFileName), "/SupplyCrate.ini")
 
@@ -636,7 +587,7 @@ ReadFile()
     new szData[MAX_FILE_CELL_SIZE],
         szKey[MAX_VALUE_LENGTH],
         szValue[MAX_RESOURCE_PATH_LENGTH],
-        eCrate[CRATE], iSection = SECTION_NONE, iLine, iWeapon
+        eCrate[CRATE], iSection = SECTION_NONE, iLine, iWeapon, iPos
 
     while( !feof(iFile) )
     {
@@ -669,23 +620,30 @@ ReadFile()
 
                         copy(eCrate[CRATE_NAME], charsmax(eCrate[CRATE_NAME]), szData)
                         copy(eCrate[CRATE_MODEL], charsmax(eCrate[CRATE_MODEL]), g_eSettings[SETTING_DEFAULT_MODEL])
-                        eCrate[CRATE_CLASS]          = CLASS_AMMO
-                        eCrate[CRATE_TEAM]           = TEAM_BOTH
-                        eCrate[CRATE_MODE]           = CRATE_FLAG_VEST
-                        eCrate[CRATE_COOLDOWN]       = 2.5
-                        eCrate[CRATE_CAPACITY]       = 10.0
-                        eCrate[CRATE_FRAMERATE]      = 1.0
-                        eCrate[CRATE_REFILL]         = -1.0
-                        eCrate[CRATE_DELAY]          = 0.0
-                        eCrate[CRATE_HEALTH]         = 250.0
-                        eCrate[CRATE_ARMOR]          = 100
-                        eCrate[CRATE_FACTOR]         = 1.0
-                        eCrate[CRATE_FACTOR_MAX]     = 1.0
-                        eCrate[CRATE_SPAWN_CHANCE]   = 1.0
-                        eCrate[CRATE_EXPLODE_DAMAGE] = 100.0
-                        eCrate[CRATE_EXPLODE_RADIUS] = 150.0
+                        eCrate[CRATE_CLASS]             = CLASS_AMMO
+                        eCrate[CRATE_FLAGS]             = g_eSettings[SETTING_DEFAULT_FLAGS]
+                        eCrate[CRATE_TEAM]              = TEAM_BOTH
+                        eCrate[CRATE_MODE]              = CRATE_FLAG_VEST
 
-                        eCrate[CRATE_WEAPON_MODE]    = WEAPON_ALL
+                        eCrate[CRATE_SPAWN_MODE]        = g_eSettings[SETTING_DEFAULT_SPAWN_MODE]
+                        eCrate[CRATE_SPAWN][0]          = g_eSettings[SETTING_DEFAULT_SPAWN][0]
+                        eCrate[CRATE_SPAWN][1]          = g_eSettings[SETTING_DEFAULT_SPAWN][1]
+                        eCrate[CRATE_SPAWN_CHANCE]      = g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE]
+
+                        eCrate[CRATE_REFILL]            = g_eSettings[SETTING_DEFAULT_REFILL]
+                        eCrate[CRATE_CAPACITY]          = g_eSettings[SETTING_DEFAULT_CAPACITY]
+                        eCrate[CRATE_COOLDOWN]          = g_eSettings[SETTING_DEFAULT_COOLDOWN]
+                        eCrate[CRATE_DELAY_ACTIVE]      = g_eSettings[SETTING_DEFAULT_DELAY_ACTIVE]
+                        eCrate[CRATE_FRAMERATE]         = (2.15 + (eCrate[CRATE_COOLDOWN] - 0.5) / (40.0 - 0.5) * (3.25 - 2.15)) / eCrate[CRATE_COOLDOWN]
+
+                        eCrate[CRATE_HEALTH]            = g_eSettings[SETTING_DEFAULT_HEALTH]
+                        eCrate[CRATE_ARMOR]             = g_eSettings[SETTING_DEFAULT_ARMOR]
+                        eCrate[CRATE_FACTOR]            = g_eSettings[SETTING_DEFAULT_FACTOR]
+                        eCrate[CRATE_FACTOR_MAX]        = g_eSettings[SETTING_DEFAULT_FACTOR_MAX]
+                        eCrate[CRATE_EXPLODE_DAMAGE]    = g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE]
+                        eCrate[CRATE_EXPLODE_RADIUS]    = g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS]
+
+                        eCrate[CRATE_WEAPON_MODE]       = g_eSettings[SETTING_DEFAULT_WEAPON_MODE]
                         for ( new i = 1; i <= CSW_P90; i ++ )
                             eCrate[CRATE_WEAPON_LIST][i] = false
 
@@ -701,6 +659,14 @@ ReadFile()
             }
             default:
             {
+                strtok(szData, szKey, charsmax(szKey), szValue, charsmax(szValue), '=')
+                iPos = contain(szValue, "#")
+                if ( iPos != -1 )
+                    szValue[iPos] = EOS
+
+                trim(szKey)
+                trim(szValue)
+
                 switch( iSection )
                 {
                     case SECTION_NONE:
@@ -758,25 +724,37 @@ ReadFile()
                         {
                             g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE] = str_to_float(szValue)
                         }
-                        else if ( equali(szKey, "SETTING_DEFAULT_DELAY") )
+                        else if ( equali(szKey, "SETTING_DEFAULT_REFILL") )
                         {
-                            g_eSettings[SETTING_DEFAULT_DELAY] = str_to_float(szValue)
+                            g_eSettings[SETTING_DEFAULT_REFILL] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_COOLDOWN") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_COOLDOWN] = str_to_float(szValue)
                         }
                         else if ( equali(szKey, "SETTING_DEFAULT_CAPACITY") )
                         {
                             g_eSettings[SETTING_DEFAULT_CAPACITY] = str_to_float(szValue)
                         }
-                        else if ( equali(szKey, "SETTING_DEFAULT_CAPACITY_MAX") )
+                        else if ( equali(szKey, "SETTING_DEFAULT_DELAY_ACTIVE") )
                         {
-                            g_eSettings[SETTING_DEFAULT_CAPACITY_MAX] = str_to_float(szValue)
-                        }
-                        else if ( equali(szKey, "SETTING_DEFAULT_REFILL") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_REFILL] = str_to_float(szValue)
+                            g_eSettings[SETTING_DEFAULT_DELAY_ACTIVE] = str_to_float(szValue)
                         }
                         else if ( equali(szKey, "SETTING_DEFAULT_HEALTH") )
                         {
                             g_eSettings[SETTING_DEFAULT_HEALTH] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_ARMOR") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_ARMOR] = str_to_num(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_FACTOR") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_FACTOR] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_FACTOR_MAX") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_FACTOR_MAX] = str_to_float(szValue)
                         }
                         else if ( equali(szKey, "SETTING_DEFAULT_EXPLODE_DAMAGE") )
                         {
@@ -785,6 +763,11 @@ ReadFile()
                         else if ( equali(szKey, "SETTING_DEFAULT_EXPLODE_RADIUS") )
                         {
                             g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_WEAPON_MODE") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_WEAPON_MODE] = str_to_num(szValue)
+                            g_eSettings[SETTING_DEFAULT_WEAPON_MODE] = clamp(g_eSettings[SETTING_DEFAULT_WEAPON_MODE], WEAPON_ALL, WEAPON_EXCEPT)
                         }
                         else if ( equali(szKey, "SETTING_MINS") )
                         {
@@ -820,11 +803,7 @@ ReadFile()
                         {
                             strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
                             g_eSettings[SETTING_OFFSET][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_OFFSET][0] = str_to_float(szValue)
-                        }
-                        else if ( equali(szKey, "SETTING_OFFSET_MAX") )
-                        {
-                            g_eSettings[SETTING_OFFSET_MAX] = str_to_float(szValue)
+                            g_eSettings[SETTING_OFFSET][1] = str_to_float(szValue)
                         }
                         else if ( equali(szKey, "SETTING_OFFSET_STEP") )
                         {
@@ -911,6 +890,16 @@ ReadFile()
                             copy(g_eSettings[SETTING_SOUND_MENU_REMOVE], charsmax(g_eSettings[SETTING_SOUND_MENU_REMOVE]), szValue)
                             if ( !g_bFileWasRead ) precache_sound(szValue)
                         }
+                        else if ( equali(szKey, "SETTING_SOUND_MENU_ALERT") )
+                        {
+                            copy(g_eSettings[SETTING_SOUND_MENU_ALERT], charsmax(g_eSettings[SETTING_SOUND_MENU_ALERT]), szValue)
+                            if ( !g_bFileWasRead ) precache_sound(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_SOUND_METAL") )
+                        {
+                            ArrayPushString(g_eSettings[SETTING_SOUND_METAL], szValue)
+                            if ( !g_bFileWasRead ) precache_sound(szValue)
+                        }
                         else if ( equali(szKey, "SETTING_COLOR_ACTIVE") )
                         {
                             strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
@@ -947,6 +936,11 @@ ReadFile()
                             eCrate[CRATE_CLASS] = str_to_num(szValue)
                             eCrate[CRATE_CLASS] = clamp(eCrate[CRATE_CLASS], CLASS_AMMO, CLASS_MARKET)
                         }
+                        else if ( equali(szKey, "CRATE_FLAGS") )
+                        {
+                            eCrate[CRATE_FLAGS] = read_flags(szValue)
+                            eCrate[CRATE_FLAGS] &= 7
+                        }
                         else if ( equali(szKey, "CRATE_TEAM") )
                         {
                             eCrate[CRATE_TEAM] = str_to_num(szValue)
@@ -957,68 +951,96 @@ ReadFile()
                             eCrate[CRATE_MODE] = read_flags(szValue)
                             eCrate[CRATE_MODE] &= 63
                         }
-                        else if ( equali(szKey, "CRATE_FLAGS") )
+                        else if ( equali(szKey, "CRATE_REFILL") )
                         {
-                            eCrate[CRATE_FLAGS] = read_flags(szValue)
-                            eCrate[CRATE_FLAGS] &= 7
+                            eCrate[CRATE_REFILL] = str_to_float(szValue)
+
+                            if ( eCrate[CRATE_REFILL] < 0.0 )
+                                eCrate[CRATE_REFILL] = g_eSettings[SETTING_DEFAULT_REFILL]
                         }
                         else if ( equali(szKey, "CRATE_COOLDOWN") )
                         {
                             eCrate[CRATE_COOLDOWN] = str_to_float(szValue)
                             eCrate[CRATE_COOLDOWN] = floatclamp(eCrate[CRATE_COOLDOWN], 0.5, 40.0)
+
                             eCrate[CRATE_FRAMERATE] = (2.15 + (eCrate[CRATE_COOLDOWN] - 0.5) / (40.0 - 0.5) * (3.25 - 2.15)) / eCrate[CRATE_COOLDOWN]
                         }
                         else if ( equali(szKey, "CRATE_CAPACITY") )
                         {
                             eCrate[CRATE_CAPACITY] = str_to_float(szValue)
-                            if ( eCrate[CRATE_CAPACITY] < 0.0 ) eCrate[CRATE_CAPACITY] = 10.0
+
+                            if ( eCrate[CRATE_CAPACITY] < 0.0 )
+                                eCrate[CRATE_CAPACITY] = g_eSettings[SETTING_DEFAULT_CAPACITY]
 
                             eCrate[CRATE_CAPACITY_MAX] = eCrate[CRATE_CAPACITY]
                         }
-                        else if ( equali(szKey, "CRATE_REFILL") )
+                        else if ( equali(szKey, "CRATE_DELAY_ACTIVE") )
                         {
-                            eCrate[CRATE_REFILL] = str_to_float(szValue)
-                            if ( eCrate[CRATE_REFILL] < 0.0 && eCrate[CRATE_REFILL] != -1.0 ) eCrate[CRATE_REFILL] = -1.0
+                            eCrate[CRATE_DELAY_ACTIVE] = str_to_float(szValue)
+
+                            if ( eCrate[CRATE_DELAY_ACTIVE] < 0.0 )
+                                eCrate[CRATE_DELAY_ACTIVE] = g_eSettings[SETTING_DEFAULT_DELAY_ACTIVE]
                         }
-                        else if ( equali(szKey, "CRATE_DELAY") )
+                        else if ( equali(szKey, "CRATE_SPAWN_MODE") )
                         {
-                            eCrate[CRATE_DELAY] = str_to_float(szValue)
-                            if ( eCrate[CRATE_DELAY] < 0.0 ) eCrate[CRATE_DELAY] = 0.0
+                            eCrate[CRATE_SPAWN_MODE] = str_to_num(szValue)
+                            eCrate[CRATE_SPAWN_MODE] = clamp(eCrate[CRATE_SPAWN_MODE], SPAWN_NEVER, SPAWN_ROUND_START)
                         }
-                        else if ( equali(szKey, "CRATE_HEALTH") )
+                        else if ( equali(szKey, "CRATE_SPAWN") )
                         {
-                            eCrate[CRATE_HEALTH] = str_to_float(szValue)
-                            if ( eCrate[CRATE_HEALTH] < 0.0 ) eCrate[CRATE_HEALTH] = 250.0
-                        }
-                        else if ( equali(szKey, "CRATE_ARMOR") )
-                        {
-                            eCrate[CRATE_ARMOR] = str_to_num(szValue)
-                            if ( eCrate[CRATE_ARMOR] < 0 ) eCrate[CRATE_ARMOR] = 100
-                        }
-                        else if ( equali(szKey, "CRATE_FACTOR") )
-                        {
-                            eCrate[CRATE_FACTOR] = str_to_float(szValue)
-                            if ( eCrate[CRATE_FACTOR] < 0.0 ) eCrate[CRATE_FACTOR] = 0.0
-                        }
-                        else if ( equali(szKey, "CRATE_FACTOR_MAX") )
-                        {
-                            eCrate[CRATE_FACTOR_MAX] = str_to_float(szValue)
-                            if ( eCrate[CRATE_FACTOR_MAX] < eCrate[CRATE_FACTOR] ) eCrate[CRATE_FACTOR_MAX] = eCrate[CRATE_FACTOR]
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            eCrate[CRATE_SPAWN][0] = str_to_float(szKey)
+                            eCrate[CRATE_SPAWN][1] = str_to_float(szValue)
+
+                            if ( eCrate[CRATE_SPAWN][0] < 0.0 ) eCrate[CRATE_SPAWN][0] = g_eSettings[SETTING_DEFAULT_SPAWN][0]
+                            if ( eCrate[CRATE_SPAWN][1] < 0.0 ) eCrate[CRATE_SPAWN][1] = g_eSettings[SETTING_DEFAULT_SPAWN][1]
                         }
                         else if ( equali(szKey, "CRATE_SPAWN_CHANCE") )
                         {
                             eCrate[CRATE_SPAWN_CHANCE] = str_to_float(szValue)
                             eCrate[CRATE_SPAWN_CHANCE] = floatclamp(eCrate[CRATE_SPAWN_CHANCE], 0.0, 1.0)
                         }
+                        else if ( equali(szKey, "CRATE_HEALTH") )
+                        {
+                            eCrate[CRATE_HEALTH] = str_to_float(szValue)
+
+                            if ( eCrate[CRATE_HEALTH] < 0.0 )
+                                eCrate[CRATE_HEALTH] = g_eSettings[SETTING_DEFAULT_HEALTH]
+                        }
+                        else if ( equali(szKey, "CRATE_ARMOR") )
+                        {
+                            eCrate[CRATE_ARMOR] = str_to_num(szValue)
+
+                            if ( eCrate[CRATE_ARMOR] < 0 )
+                                eCrate[CRATE_ARMOR] = g_eSettings[SETTING_DEFAULT_ARMOR]
+                        }
+                        else if ( equali(szKey, "CRATE_FACTOR") )
+                        {
+                            eCrate[CRATE_FACTOR] = str_to_float(szValue)
+
+                            if ( eCrate[CRATE_FACTOR] < 0.0 )
+                                eCrate[CRATE_FACTOR] = g_eSettings[SETTING_DEFAULT_FACTOR]
+                        }
+                        else if ( equali(szKey, "CRATE_FACTOR_MAX") )
+                        {
+                            eCrate[CRATE_FACTOR_MAX] = str_to_float(szValue)
+
+                            if ( eCrate[CRATE_FACTOR_MAX] < eCrate[CRATE_FACTOR] )
+                                eCrate[CRATE_FACTOR_MAX] = eCrate[CRATE_FACTOR]
+                        }
                         else if ( equali(szKey, "CRATE_EXPLODE_DAMAGE") )
                         {
                             eCrate[CRATE_EXPLODE_DAMAGE] = str_to_float(szValue)
-                            if ( eCrate[CRATE_EXPLODE_DAMAGE] < 0.0 ) eCrate[CRATE_EXPLODE_DAMAGE] = 100.0
+
+                            if ( eCrate[CRATE_EXPLODE_DAMAGE] < 0.0 )
+                                eCrate[CRATE_EXPLODE_DAMAGE] = g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE]
                         }
                         else if ( equali(szKey, "CRATE_EXPLODE_RADIUS") )
                         {
                             eCrate[CRATE_EXPLODE_RADIUS] = str_to_float(szValue)
-                            if ( eCrate[CRATE_EXPLODE_RADIUS] < 0.0 ) eCrate[CRATE_EXPLODE_RADIUS] = 150.0
+
+                            if ( eCrate[CRATE_EXPLODE_RADIUS] < 0.0 )
+                                eCrate[CRATE_EXPLODE_RADIUS] = g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS]
                         }
                         else if ( equali(szKey, "CRATE_WEAPON_MODE") )
                         {
@@ -1035,8 +1057,7 @@ ReadFile()
                             {
                                 iWeapon = str_to_num(szKey)
 
-                                if ( iWeapon >= 1
-                                && iWeapon <= 30 )
+                                if ( iWeapon >= 1 && iWeapon <= 30 )
                                     eCrate[CRATE_WEAPON_LIST][iWeapon] = true
 
                                 strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ',')
@@ -1066,6 +1087,23 @@ public client_authorized(id)
     set_task(DELAY_ON_CONNECT, "UpdateData", id)
 }
 
+public client_disconnected(id)
+{
+    new iItem
+    if ( g_ePlayerData[id][PDATA_CRATE_GHOST]
+    && (iItem = pev(g_ePlayerData[id][PDATA_CRATE_GHOST], CRATE_ARRAY_ITEM)) != -1 )
+    {
+        crateKill(g_ePlayerData[id][PDATA_CRATE_GHOST])
+        crateRemove(iItem)
+    }
+
+    g_ePlayerData[id][PDATA_CRATE_GHOST]  = 0
+    g_ePlayerData[id][PDATA_CRATE_USE]    = 0
+    g_ePlayerData[id][PDATA_CRATE_ACTION] = false
+    g_ePlayerData[id][PDATA_CRATE_MENU]   = 0
+    g_ePlayerData[id][PDATA_ADMIN_FLAGS]  = 0
+}
+
 public UpdateData(id)
 {
     get_user_name(id, g_ePlayerData[id][PDATA_NAME], charsmax(g_ePlayerData[][PDATA_NAME]))
@@ -1081,25 +1119,21 @@ public crateInit()
 
 public crateMenu(id, iType)
 {
-    new szTitle[64],
-        iMenu
-
-    formatex(szTitle, charsmax(szTitle), "%L", id, "CRATE_MENU_TITLE")
-    iMenu = menu_create(szTitle, g_szMenuHandler[iType])
+    new szData[64], iMenu
+    formatex(szData, charsmax(szData), "%L^n%L", id, "CRATE_MENU_TITLE", PLUGIN_VERSION, id, "CRATE_MENU_TITLE_PAGE")
+    iMenu = menu_create(szData, g_szMenuHandler[iType])
 
     switch( iType )
     {
         case MENU_ROOT:   { menuRoot(id, iMenu); }
-        case MENU_CREATE: { menuCreate(iMenu);      format(szTitle, charsmax(szTitle), "%s^n%L", szTitle, id, "CRATE_ROOT_CREATE"); }
-        case MENU_TOGGLE: { menuToggle(id, iMenu);  format(szTitle, charsmax(szTitle), "%s^n%L", szTitle, id, "CRATE_ROOT_TOGGLE"); }
-        case MENU_REMOVE: { menuRemove(id, iMenu);  format(szTitle, charsmax(szTitle), "%s^n%L", szTitle, id, "CRATE_ROOT_REMOVE"); }
-        case MENU_ROTATE: { menuRotate(id, iMenu);  format(szTitle, charsmax(szTitle), "%s^n%L", szTitle, id, "CRATE_ROOT_ROTATE"); }
+        case MENU_CREATE: { menuCreate(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_CREATE"); }
+        case MENU_REMOVE: { menuRemove(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_REMOVE"); }
+        case MENU_SHOW:   { menuShow(id, iMenu);    format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_SHOW"); }
+        case MENU_TEAM:   { menuTeam(id, iMenu);    format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_TEAM"); }
+        case MENU_SPAWN:  { menuSpawn(id, iMenu);   format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_SPAWN"); }
+        case MENU_ROTATE: { menuRotate(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_ROTATE"); }
     }
 
-    if ( menu_pages(iMenu) > 1 )
-        format(szTitle, charsmax(szTitle), "%s^n%L", szTitle, id, "CRATE_MENU_TITLE_PAGE")
-
-    menu_setprop(iMenu, MPROP_TITLE, szTitle)
     menu_setprop(iMenu, MPROP_EXIT, MEXIT_ALL)
     menu_setprop(iMenu, MPROP_NUMBER_COLOR, "\r")
 
@@ -1107,20 +1141,49 @@ public crateMenu(id, iType)
     return PLUGIN_HANDLED
 }
 
+stock menuNav(id, iMenu)
+{
+    new szItem[64]
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_NAV_NEXT")
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_NAV_BACK")
+    menu_additem(iMenu, szItem)
+
+    menu_addblank2(iMenu)
+}
+
 public menuRoot(id, iMenu)
 {
     new szItem[64]
 
     formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_CREATE")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_TOGGLE")
-    menu_additem(iMenu, szItem)
+    menu_additem(iMenu, szItem )
 
     formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_REMOVE")
     menu_additem(iMenu, szItem)
 
     formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_SAVE")
+    menu_additem(iMenu, szItem)
+
+    menu_addblank2(iMenu)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_NOCLIP", id, get_user_noclip(id) ? "CRATE_ON" : "CRATE_OFF")
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_GODMODE", id, get_user_godmode(id) ? "CRATE_ON" : "CRATE_OFF")
+    menu_additem(iMenu, szItem)
+
+    menu_addblank2(iMenu)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_SHOW")
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_TEAM")
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_SPAWN")
     menu_additem(iMenu, szItem)
 }
 
@@ -1146,18 +1209,6 @@ public menuHandlerRoot(id, menu, item)
                 crateMenu(id, MENU_CREATE)
             }
         }
-        case ROOT_TOGGLE:
-        {
-            if ( !g_iCrate )
-            {
-                client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_NO_CRATE")
-            }
-            else
-            {
-                crateSound(id, SOUND_MENU_NAV)
-                crateMenu(id, MENU_TOGGLE)
-            }
-        }
         case ROOT_REMOVE:
         {
             if ( !g_iCrate )
@@ -1174,13 +1225,57 @@ public menuHandlerRoot(id, menu, item)
         {
             saveData(id)
         }
+        case ROOT_NOCLIP:
+        {
+            crateNoClip(id)
+        }
+        case ROOT_GODMODE:
+        {
+            crateGodMode(id)
+        }
+        case ROOT_SHOW:
+        {
+            if ( !g_iCrate )
+            {
+                client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_NO_CRATE")
+            }
+            else
+            {
+                crateSound(id, SOUND_MENU_NAV)
+                crateMenu(id, MENU_SHOW)
+            }
+        }
+        case ROOT_TEAM:
+        {
+            if ( !g_iCrate )
+            {
+                client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_NO_CRATE")
+            }
+            else
+            {
+                crateSound(id, SOUND_MENU_NAV)
+                crateMenu(id, MENU_TEAM)
+            }
+        }
+        case ROOT_SPAWN:
+        {
+            if ( !g_iCrate )
+            {
+                client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_NO_CRATE")
+            }
+            else
+            {
+                crateSound(id, SOUND_MENU_NAV)
+                crateMenu(id, MENU_SPAWN)
+            }
+        }
     }
 
     menu_destroy(menu)
     return PLUGIN_HANDLED
 }
 
-public menuCreate(iMenu)
+public menuCreate(id, iMenu)
 {
     new eCrate[CRATE],
         szItem[64]
@@ -1211,129 +1306,13 @@ public menuHandlerCreate(id, menu, item)
     return PLUGIN_HANDLED
 }
 
-public menuToggle(id, iMenu)
-{
-    new szItem[64],
-        eCrate[CRATE]
-
-    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_NAV_NEXT")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_NAV_BACK")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_TOGGLE_CURRENT",
-    eCrate[CRATE_STATE] == STATE_ACTIVE ? "\y" : "\r", eCrate[CRATE_NAME], id,
-    eCrate[CRATE_STATE] == STATE_ACTIVE ? "CRATE_ON" : "CRATE_OFF")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_TOGGLE_ALL_ON")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_TOGGLE_ALL_OFF")
-    menu_additem(iMenu, szItem)
-
-    g_ePlayerData[id][PDATA_CRATE_ACTION] = true
-    eCrate[CRATE_FLAGS] |= FLAG_SELECT
-    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-}
-
-public menuHandlerToggle(id, menu, item)
-{
-    new eCrate[CRATE]
-
-    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-    eCrate[CRATE_FLAGS] &= ~FLAG_SELECT
-    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-
-    switch( item )
-    {
-        case TOGGLE_NEXT:
-        {
-            if ( g_ePlayerData[id][PDATA_CRATE_MENU] >= g_iCrate - 1 )
-                g_ePlayerData[id][PDATA_CRATE_MENU] = 0
-            else
-                g_ePlayerData[id][PDATA_CRATE_MENU] ++
-
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_TOGGLE)
-        }
-        case TOGGLE_BACK:
-        {
-            if ( g_ePlayerData[id][PDATA_CRATE_MENU] <= 0 )
-                g_ePlayerData[id][PDATA_CRATE_MENU] = g_iCrate - 1
-            else
-                g_ePlayerData[id][PDATA_CRATE_MENU] --
-
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_TOGGLE)
-        }
-        case TOGGLE_CURRENT:
-        {
-            eCrate[CRATE_STATE] = eCrate[CRATE_STATE] == STATE_ACTIVE ? STATE_INACTIVE : STATE_ACTIVE
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_TOGGLE_CURRENT",
-            eCrate[CRATE_NAME], id, eCrate[CRATE_STATE] == STATE_ACTIVE ? "CRATE_CHAT_ACTIVATED" : "CRATE_CHAT_DEACTIVATED")
-            ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_TOGGLE)
-        }
-        case TOGGLE_ALL_ON:
-        {
-            for ( new i = 0; i < g_iCrate; i ++ )
-            {
-                ArrayGetArray(g_aCrate, i, eCrate)
-                eCrate[CRATE_STATE] = STATE_ACTIVE
-
-                ArraySetArray(g_aCrate, i, eCrate)
-            }
-
-            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_TOGGLE_ALL_ON")
-
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_TOGGLE)
-        }
-        case TOGGLE_ALL_OFF:
-        {
-            for ( new i = 0; i < g_iCrate; i ++ )
-            {
-                ArrayGetArray(g_aCrate, i, eCrate)
-                eCrate[CRATE_STATE] = STATE_INACTIVE
-
-                ArraySetArray(g_aCrate, i, eCrate)
-            }
-
-            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_TOGGLE_ALL_OFF")
-
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_TOGGLE)
-        }
-        default:
-        {
-            g_ePlayerData[id][PDATA_CRATE_MENU] = 0
-            g_ePlayerData[id][PDATA_CRATE_ACTION] = false
-        }
-    }
-
-    menu_destroy(menu)
-    return PLUGIN_HANDLED
-}
-
 public menuRemove(id, iMenu)
 {
     new szItem[64],
         eCrate[CRATE]
 
+    menuNav(id, iMenu)
     ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_NAV_NEXT")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_NAV_BACK")
-    menu_additem(iMenu, szItem)
 
     formatex(szItem, charsmax(szItem), "%L", id, "CRATE_REMOVE_CURRENT", eCrate[CRATE_NAME])
     menu_additem(iMenu, szItem)
@@ -1381,8 +1360,7 @@ public menuHandlerRemove(id, menu, item)
             crateKill(eCrate[CRATE_ID])
             crateRemove(g_ePlayerData[id][PDATA_CRATE_MENU])
 
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_REMOVE_CURRENT",
-            eCrate[CRATE_NAME])
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_REMOVE_CURRENT", eCrate[CRATE_NAME])
             g_ePlayerData[id][PDATA_CRATE_MENU] = 0
 
             crateSound(id, g_iCrate > 0 ? SOUND_MENU_REMOVE : SOUND_MENU_NAV)
@@ -1401,8 +1379,421 @@ public menuHandlerRemove(id, menu, item)
             client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_REMOVE_ALL")
             g_ePlayerData[id][PDATA_CRATE_MENU] = 0
 
-            crateSound(id, SOUND_MENU_NAV)
+            crateSound(0, SOUND_MENU_ALERT)
             crateMenu(id, MENU_ROOT)
+        }
+        default:
+        {
+            g_ePlayerData[id][PDATA_CRATE_MENU] = 0
+            g_ePlayerData[id][PDATA_CRATE_ACTION] = false
+        }
+    }
+
+    menu_destroy(menu)
+    return PLUGIN_HANDLED
+}
+
+public menuShow(id, iMenu)
+{
+    new szItem[64],
+        eCrate[CRATE]
+
+    menuNav(id, iMenu)
+    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SHOW_CURRENT",
+    g_szShowColor[eCrate[CRATE_SHOW]], eCrate[CRATE_NAME], id, g_szShow[eCrate[CRATE_SHOW]])
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SHOW_ALL_HIDE")
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SHOW_ALL_SHOW")
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SHOW_ALL_DEFAULT")
+    menu_additem(iMenu, szItem)
+
+    g_ePlayerData[id][PDATA_CRATE_ACTION] = true
+    eCrate[CRATE_FLAGS] |= FLAG_SELECT
+    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+}
+
+public menuHandlerShow(id, menu, item)
+{
+    new eCrate[CRATE], Float:fCurrentTime
+
+    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+    eCrate[CRATE_FLAGS] &= ~FLAG_SELECT
+    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+    fCurrentTime = get_gametime()
+
+    switch( item )
+    {
+        case SHOW_NEXT:
+        {
+            if ( g_ePlayerData[id][PDATA_CRATE_MENU] >= g_iCrate - 1 )
+                g_ePlayerData[id][PDATA_CRATE_MENU] = 0
+            else
+                g_ePlayerData[id][PDATA_CRATE_MENU] ++
+
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_SHOW)
+        }
+        case SHOW_BACK:
+        {
+            if ( g_ePlayerData[id][PDATA_CRATE_MENU] <= 0 )
+                g_ePlayerData[id][PDATA_CRATE_MENU] = g_iCrate - 1
+            else
+                g_ePlayerData[id][PDATA_CRATE_MENU] --
+
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_SHOW)
+        }
+        case SHOW_CURRENT:
+        {
+            if ( ++ eCrate[CRATE_SHOW] > SHOW_FORCE_SHOW )
+                eCrate[CRATE_SHOW] = SHOW_DEFAULT
+
+            if ( eCrate[CRATE_SHOW] == SHOW_FORCE_SHOW )
+                eCrate[CRATE_FLAGS] |= FLAG_SHOW
+            else if ( eCrate[CRATE_SHOW] == SHOW_FORCE_HIDE )
+                eCrate[CRATE_FLAGS] &= ~FLAG_SHOW
+            else if ( eCrate[CRATE_SHOW] == SHOW_DEFAULT
+            && eCrate[CRATE_SPAWN_MODE] == SPAWN_DELAY
+            && eCrate[CRATE_FLAGS] & FLAG_DEAD )
+                eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
+
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SHOW_CURRENT",
+            eCrate[CRATE_NAME], id, g_szShowChat[eCrate[CRATE_SHOW]])
+            crateState(eCrate, eCrate[CRATE_FLAGS] & FLAG_SHOW ? true : false, eCrate[CRATE_FLAGS] & FLAG_DEAD ? true : false)
+            ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_SHOW)
+        }
+        case SHOW_ALL_HIDE:
+        {
+            for ( new i = 0; i < g_iCrate; i ++ )
+            {
+                ArrayGetArray(g_aCrate, i, eCrate)
+                eCrate[CRATE_SHOW] = SHOW_FORCE_HIDE
+                eCrate[CRATE_FLAGS] &= ~FLAG_SHOW
+                crateState(eCrate, false, false)
+
+                ArraySetArray(g_aCrate, i, eCrate)
+            }
+
+            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_SHOW_ALL_HIDDEN")
+
+            crateSound(0, SOUND_MENU_ALERT)
+            crateMenu(id, MENU_SHOW)
+        }
+        case SHOW_ALL_SHOW:
+        {
+            for ( new i = 0; i < g_iCrate; i ++ )
+            {
+                ArrayGetArray(g_aCrate, i, eCrate)
+                eCrate[CRATE_SHOW] = SHOW_FORCE_SHOW
+                eCrate[CRATE_FLAGS] |= FLAG_SHOW
+                crateState(eCrate, true, eCrate[CRATE_FLAGS] & FLAG_DEAD ? true : false)
+
+                ArraySetArray(g_aCrate, i, eCrate)
+            }
+
+            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_SHOW_ALL_SHOWN")
+
+            crateSound(0, SOUND_MENU_ALERT)
+            crateMenu(id, MENU_SHOW)
+        }
+        case SHOW_ALL_DEFAULT:
+        {
+            for ( new i = 0; i < g_iCrate; i ++ )
+            {
+                ArrayGetArray(g_aCrate, i, eCrate)
+
+                eCrate[CRATE_SHOW] = SHOW_DEFAULT
+                if ( eCrate[CRATE_SPAWN_MODE] == SPAWN_DELAY
+                && eCrate[CRATE_FLAGS] & FLAG_DEAD )
+                    eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
+
+                ArraySetArray(g_aCrate, i, eCrate)
+            }
+
+            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_SHOW_ALL_DEFAULT")
+
+            crateSound(0, SOUND_MENU_ALERT)
+            crateMenu(id, MENU_SHOW)
+        }
+        default:
+        {
+            g_ePlayerData[id][PDATA_CRATE_MENU] = 0
+            g_ePlayerData[id][PDATA_CRATE_ACTION] = false
+        }
+    }
+
+    menu_destroy(menu)
+    return PLUGIN_HANDLED
+}
+
+public menuTeam(id, iMenu)
+{
+    new szItem[64],
+        eCrate[CRATE]
+
+    menuNav(id, iMenu)
+    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_TEAM_CURRENT",
+    eCrate[CRATE_NAME], id, g_szTeam[eCrate[CRATE_TEAM]])
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_TEAM_ALL_NONE")
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_TEAM_ALL_T")
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_TEAM_ALL_CT")
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_TEAM_ALL_BOTH")
+    menu_additem(iMenu, szItem)
+
+    g_ePlayerData[id][PDATA_CRATE_ACTION] = true
+    eCrate[CRATE_FLAGS] |= FLAG_SELECT
+    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+}
+
+public menuHandlerTeam(id, menu, item)
+{
+    new eCrate[CRATE]
+
+    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+    eCrate[CRATE_FLAGS] &= ~FLAG_SELECT
+    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+
+    switch( item )
+    {
+        case TEAM_NEXT:
+        {
+            if ( g_ePlayerData[id][PDATA_CRATE_MENU] >= g_iCrate - 1 )
+                g_ePlayerData[id][PDATA_CRATE_MENU] = 0
+            else
+                g_ePlayerData[id][PDATA_CRATE_MENU] ++
+
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_TEAM)
+        }
+        case TEAM_BACK:
+        {
+            if ( g_ePlayerData[id][PDATA_CRATE_MENU] <= 0 )
+                g_ePlayerData[id][PDATA_CRATE_MENU] = g_iCrate - 1
+            else
+                g_ePlayerData[id][PDATA_CRATE_MENU] --
+
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_TEAM)
+        }
+        case TEAM_CURRENT:
+        {
+            if ( ++ eCrate[CRATE_TEAM] > TEAM_BOTH )
+                eCrate[CRATE_TEAM] = TEAM_NONE
+
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_TEAM_CURRENT",
+            eCrate[CRATE_NAME], id, g_szTeamChat[eCrate[CRATE_TEAM]])
+            ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_TEAM)
+        }
+        case TEAM_ALL_NONE:
+        {
+            for ( new i = 0; i < g_iCrate; i ++ )
+            {
+                ArrayGetArray(g_aCrate, i, eCrate)
+                eCrate[CRATE_TEAM] = TEAM_NONE
+                ArraySetArray(g_aCrate, i, eCrate)
+            }
+
+            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_TEAM_ALL_NONE")
+
+            crateSound(0, SOUND_MENU_ALERT)
+            crateMenu(id, MENU_TEAM)
+        }
+        case TEAM_ALL_T:
+        {
+            for ( new i = 0; i < g_iCrate; i ++ )
+            {
+                ArrayGetArray(g_aCrate, i, eCrate)
+                eCrate[CRATE_TEAM] = TEAM_T
+                ArraySetArray(g_aCrate, i, eCrate)
+            }
+
+            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_TEAM_ALL_T")
+
+            crateSound(0, SOUND_MENU_ALERT)
+            crateMenu(id, MENU_TEAM)
+        }
+        case TEAM_ALL_CT:
+        {
+            for ( new i = 0; i < g_iCrate; i ++ )
+            {
+                ArrayGetArray(g_aCrate, i, eCrate)
+                eCrate[CRATE_TEAM] = TEAM_CT
+                ArraySetArray(g_aCrate, i, eCrate)
+            }
+
+            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_TEAM_ALL_CT")
+
+            crateSound(0, SOUND_MENU_ALERT)
+            crateMenu(id, MENU_TEAM)
+        }
+        case TEAM_ALL_BOTH:
+        {
+            for ( new i = 0; i < g_iCrate; i ++ )
+            {
+                ArrayGetArray(g_aCrate, i, eCrate)
+                eCrate[CRATE_TEAM] = TEAM_BOTH
+                ArraySetArray(g_aCrate, i, eCrate)
+            }
+
+            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_TEAM_ALL_BOTH")
+
+            crateSound(0, SOUND_MENU_ALERT)
+            crateMenu(id, MENU_TEAM)
+        }
+        default:
+        {
+            g_ePlayerData[id][PDATA_CRATE_MENU] = 0
+            g_ePlayerData[id][PDATA_CRATE_ACTION] = false
+        }
+    }
+
+    menu_destroy(menu)
+    return PLUGIN_HANDLED
+}
+
+public menuSpawn(id, iMenu)
+{
+    new szItem[64],
+        eCrate[CRATE]
+
+    menuNav(id, iMenu)
+    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SPAWN_CURRENT",
+    eCrate[CRATE_NAME], id, g_szSpawn[eCrate[CRATE_SPAWN_MODE]])
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SPAWN_ALL_NEVER")
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SPAWN_ALL_DELAY")
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SPAWN_ALL_ROUND_START")
+    menu_additem(iMenu, szItem)
+
+    g_ePlayerData[id][PDATA_CRATE_ACTION] = true
+    eCrate[CRATE_FLAGS] |= FLAG_SELECT
+    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+}
+
+public menuHandlerSpawn(id, menu, item)
+{
+    new eCrate[CRATE], Float:fCurrentTime
+
+    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+    eCrate[CRATE_FLAGS] &= ~FLAG_SELECT
+    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+    fCurrentTime = get_gametime()
+
+    switch( item )
+    {
+        case SPAWN_NEXT:
+        {
+            if ( g_ePlayerData[id][PDATA_CRATE_MENU] >= g_iCrate - 1 )
+                g_ePlayerData[id][PDATA_CRATE_MENU] = 0
+            else
+                g_ePlayerData[id][PDATA_CRATE_MENU] ++
+
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_SPAWN)
+        }
+        case SPAWN_BACK:
+        {
+            if ( g_ePlayerData[id][PDATA_CRATE_MENU] <= 0 )
+                g_ePlayerData[id][PDATA_CRATE_MENU] = g_iCrate - 1
+            else
+                g_ePlayerData[id][PDATA_CRATE_MENU] --
+
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_SPAWN)
+        }
+        case SPAWN_CURRENT:
+        {
+            if ( ++ eCrate[CRATE_SPAWN_MODE] > SPAWN_ROUND_START )
+                eCrate[CRATE_SPAWN_MODE] = SPAWN_NEVER
+
+            if ( eCrate[CRATE_SHOW] == SHOW_DEFAULT
+            && eCrate[CRATE_SPAWN_MODE] == SPAWN_DELAY
+            && eCrate[CRATE_FLAGS] & FLAG_DEAD )
+                eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
+
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SPAWN_CURRENT",
+            eCrate[CRATE_NAME], id, g_szSpawnChat[eCrate[CRATE_SPAWN_MODE]])
+            ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_SPAWN)
+        }
+        case SPAWN_ALL_NEVER:
+        {
+            for ( new i = 0; i < g_iCrate; i ++ )
+            {
+                ArrayGetArray(g_aCrate, i, eCrate)
+                eCrate[CRATE_SPAWN_MODE] = SPAWN_NEVER
+                ArraySetArray(g_aCrate, i, eCrate)
+            }
+
+            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_SPAWN_ALL_NEVER")
+
+            crateSound(0, SOUND_MENU_ALERT)
+            crateMenu(id, MENU_SPAWN)
+        }
+        case SPAWN_ALL_DELAY:
+        {
+            for ( new i = 0; i < g_iCrate; i ++ )
+            {
+                ArrayGetArray(g_aCrate, i, eCrate)
+
+                eCrate[CRATE_SPAWN_MODE] = SPAWN_DELAY
+                if ( eCrate[CRATE_SHOW] == SHOW_DEFAULT
+                && eCrate[CRATE_FLAGS] & FLAG_DEAD )
+                    eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
+
+                ArraySetArray(g_aCrate, i, eCrate)
+            }
+
+            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_SPAWN_ALL_DELAY")
+
+            crateSound(0, SOUND_MENU_ALERT)
+            crateMenu(id, MENU_SPAWN)
+        }
+        case SPAWN_ALL_ROUND_START:
+        {
+            for ( new i = 0; i < g_iCrate; i ++ )
+            {
+                ArrayGetArray(g_aCrate, i, eCrate)
+                eCrate[CRATE_SPAWN_MODE] = SPAWN_ROUND_START
+                ArraySetArray(g_aCrate, i, eCrate)
+            }
+
+            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_SPAWN_ALL_ROUND_START")
+
+            crateSound(0, SOUND_MENU_ALERT)
+            crateMenu(id, MENU_SPAWN)
         }
         default:
         {
@@ -1431,10 +1822,15 @@ public menuRotate(id, iMenu)
 
 public menuHandlerRotate(id, menu, item)
 {
-    new eCrate[CRATE],
-        iItem
+    new eCrate[CRATE], iItem
+    if ( (iItem = crateGet(eCrate, g_ePlayerData[id][PDATA_CRATE_GHOST])) == -1 )
+    {
+        menu_destroy(menu)
+        return PLUGIN_HANDLED
+    }
 
-    iItem = crateFind(g_ePlayerData[id][PDATA_CRATE_GHOST], eCrate)
+    new Float:fCurrentTime
+    fCurrentTime = get_gametime()
 
     switch( item )
     {
@@ -1464,18 +1860,17 @@ public menuHandlerRotate(id, menu, item)
         }
         case ROTATE_PLACE:
         {
-            if ( crateTrace(eCrate, id) && iItem != -1 )
+            if ( crateTrace(eCrate, id, iItem) )
             {
                 g_ePlayerData[id][PDATA_CRATE_GHOST] = 0
                 g_ePlayerData[id][PDATA_CRATE_ACTION] = false
 
-                pev(eCrate[CRATE_ID], pev_origin, eCrate[CRATE_ORIGIN])
-                pev(eCrate[CRATE_ID], pev_angles, eCrate[CRATE_ANGLES])
-                eCrate[CRATE_NEXT_USE] = get_gametime() + 0.25
-                eCrate[CRATE_STATE] = STATE_ACTIVE
+                eCrate[CRATE_NEXT_USE] = fCurrentTime + 0.25
+                eCrate[CRATE_FLAGS] |= FLAG_SHOW
+                eCrate[CRATE_FLAGS] &= ~FLAG_GHOST
 
                 crateSetAnim(eCrate)
-                crateSetActive(eCrate)
+                crateSetSolid(eCrate)
                 ArraySetArray(g_aCrate, iItem, eCrate)
 
                 client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_CREATE_NEW", eCrate[CRATE_NAME])
@@ -1503,72 +1898,66 @@ public menuHandlerRotate(id, menu, item)
 
 public crateTask()
 {
-    new iPlayers[MAX_PLAYERS], iNum, id,
-        eCrate[CRATE], iItem, iEnt
+    new eCrate[CRATE], iItem, bool:bModified, Float:fCurrentTime
+    fCurrentTime = get_gametime()
 
-    get_players(iPlayers, iNum, "ach")
-    for ( new i = 0; i < iNum; i ++ )
+    for ( new id = 1; id <= g_iMaxPlayers; id ++ )
     {
-        id = iPlayers[i]
-        iEnt = g_ePlayerData[id][PDATA_CRATE_GHOST]
-        if ( !iEnt || (iItem = crateFind(iEnt, eCrate)) == -1 )
+        if ( !g_ePlayerData[id][PDATA_CRATE_GHOST]
+        || (iItem = crateGet(eCrate, g_ePlayerData[id][PDATA_CRATE_GHOST])) == -1 )
             continue
 
-        if ( crateTrace(eCrate, id) ) eCrate[CRATE_STATE] = STATE_VALID
-        else                          eCrate[CRATE_STATE] = STATE_INVALID
-
-        ArraySetArray(g_aCrate, iItem, eCrate)
+        crateTrace(eCrate, id, iItem)
     }
 
     for ( new i = 0; i < g_iCrate; i ++ )
     {
         ArrayGetArray(g_aCrate, i, eCrate)
-        if ( eCrate[CRATE_STATE] != STATE_ACTIVE && eCrate[CRATE_STATE] != STATE_INACTIVE )
-            continue
+        bModified = false
 
-        if ( eCrate[CRATE_NEXT_REFILL]
-        && get_gametime() >= eCrate[CRATE_NEXT_REFILL] )
+        if ( eCrate[CRATE_FLAGS] & FLAG_SHOW
+        && eCrate[CRATE_NEXT_REFILL]
+        && fCurrentTime >= eCrate[CRATE_NEXT_REFILL] )
         {
             eCrate[CRATE_CAPACITY] = eCrate[CRATE_CAPACITY_MAX]
             eCrate[CRATE_NEXT_REFILL] = 0.0
-            eCrate[CRATE_NEXT_USE] = get_gametime() + 0.1
+            eCrate[CRATE_NEXT_USE] = fCurrentTime + 0.1
 
-            if ( eCrate[CRATE_FLAGS] & FLAG_SOUND )
-                crateSound(eCrate[CRATE_ID], SOUND_REFILL, false)
+            bModified = true
         }
-        else if ( eCrate[CRATE_OCCUPIED]
+        else if ( eCrate[CRATE_FLAGS] & FLAG_SHOW
+        && eCrate[CRATE_NEXT_USE] > 0.0
         && get_gametime() >= eCrate[CRATE_NEXT_USE] )
         {
-            eCrate[CRATE_OCCUPIED] = 0
             eCrate[CRATE_NEXT_USE] = 0.0
             crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_IDLE, 1.0)
+
+            bModified = true
+        }
+        else if ( eCrate[CRATE_FLAGS] & FLAG_DEAD
+        && eCrate[CRATE_SHOW] == SHOW_DEFAULT
+        && eCrate[CRATE_SPAWN_MODE] == SPAWN_DELAY
+        && eCrate[CRATE_NEXT_SPAWN]
+        && fCurrentTime >= eCrate[CRATE_NEXT_SPAWN] )
+        {
+            if ( eCrate[CRATE_SPAWN_CHANCE] >= random_float(0.0, 1.0) )
+            {
+                eCrate[CRATE_FLAGS] |= FLAG_SHOW
+                eCrate[CRATE_NEXT_SPAWN] = 0.0
+                crateState(eCrate, true, true)
+                crateSound(eCrate[CRATE_ID], SOUND_PLACE, .bPlayer = false)
+
+                bModified = true
+            }
+            else
+            {
+                eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
+            }
         }
 
-        ArraySetArray(g_aCrate, i, eCrate)
+        if ( bModified )
+            ArraySetArray(g_aCrate, i, eCrate)
     }
-}
-
-stock crateDummy(eCrate[CRATE], iItem)
-{
-    new iEnt
-    iEnt = engfunc(EngFunc_CreateNamedEntity, engfunc(EngFunc_AllocString, "info_target"))
-
-    if ( !pev_valid(iEnt) )
-        return
-
-    set_pev(iEnt, pev_classname, g_szCN[eCrate[CRATE_CLASS]])
-    set_pev(iEnt, pev_origin, eCrate[CRATE_ORIGIN])
-    set_pev(iEnt, pev_angles, eCrate[CRATE_ANGLES])
-
-    set_pev(iEnt, pev_solid, SOLID_NOT)
-    set_pev(iEnt, pev_movetype, MOVETYPE_NONE)
-    set_pev(iEnt, pev_takedamage, DAMAGE_NO)
-    engfunc(EngFunc_SetModel, iEnt, eCrate[CRATE_MODEL])
-
-    eCrate[CRATE_ID] = iEnt
-    ArraySetArray(g_aCrate, iItem, eCrate)
-
-    dllfunc(DLLFunc_Spawn, iEnt)
 }
 
 stock crateCreate(id, iItem)
@@ -1582,7 +1971,6 @@ stock crateCreate(id, iItem)
     new eCrate[CRATE]
     ArrayGetArray(g_aCrateConfig, iItem, eCrate)
 
-    DispatchKeyValue(iEnt, "material", MATERIAL_METAL)
     eCrate[CRATE_ID] = iEnt
     eCrate[CRATE_ITEM] = iItem
     if ( id )
@@ -1590,8 +1978,11 @@ stock crateCreate(id, iItem)
         g_ePlayerData[id][PDATA_CRATE_GHOST] = eCrate[CRATE_ID]
         g_ePlayerData[id][PDATA_CRATE_ACTION] = true
         g_ePlayerData[id][PDATA_OFFSET] = g_eSettings[SETTING_OFFSET_BASE]
+        eCrate[CRATE_FLAGS] |= FLAG_GHOST
     }
 
+    set_pev(iEnt, CRATE_ARRAY_ITEM, g_iCrate)
+    set_pev(iEnt, pev_impulse, CRATE_KEY)
     set_pev(iEnt, pev_classname, g_szCN[eCrate[CRATE_CLASS]])
     engfunc(EngFunc_SetModel, iEnt, eCrate[CRATE_MODEL])
 
@@ -1603,14 +1994,21 @@ stock crateCreate(id, iItem)
 
 stock crateRemove(iItem)
 {
+    new eCrate[CRATE]
     ArrayDeleteItem(g_aCrate, iItem)
     g_iCrate --
+
+    for ( new i = iItem; i < g_iCrate; i ++ )
+    {
+        ArrayGetArray(g_aCrate, i, eCrate)
+        set_pev(eCrate[CRATE_ID], CRATE_ARRAY_ITEM, i)
+    }
 }
 
-stock saveData(id)
+public saveData(id)
 {
     new eCrate[CRATE],
-        szFile[64], iFile,
+        szFile[128], iFile,
         szData[64]
 
     get_mapname(szFile, charsmax(szFile))
@@ -1634,27 +2032,39 @@ stock saveData(id)
         eCrate[CRATE_ORIGIN][0], eCrate[CRATE_ORIGIN][1], eCrate[CRATE_ORIGIN][2])
         fputs(iFile, szData)
 
-        formatex(szData, charsmax(szData), "angles = %.2f %.2f %.2f^n^n",
+        formatex(szData, charsmax(szData), "angles = %.2f %.2f %.2f^n",
         eCrate[CRATE_ANGLES][0], eCrate[CRATE_ANGLES][1], eCrate[CRATE_ANGLES][2])
         fputs(iFile, szData)
 
-        formatex(szData, charsmax(szData), "decal = %.2f %.2f %.2f^n^n",
-        eCrate[CRATE_DECAL][0], eCrate[CRATE_DECAL][1], eCrate[CRATE_DECAL][2])
+        formatex(szData, charsmax(szData), "show = %d^n", eCrate[CRATE_SHOW])
+        fputs(iFile, szData)
+
+        eCrate[CRATE_FLAGS] &= ~(FLAG_GHOST | FLAG_SELECT | FLAG_VALID)
+        formatex(szData, charsmax(szData), "flags = %d^n", eCrate[CRATE_FLAGS])
+        fputs(iFile, szData)
+
+        formatex(szData, charsmax(szData), "team = %d^n", eCrate[CRATE_TEAM])
+        fputs(iFile, szData)
+
+        formatex(szData, charsmax(szData), "spawn = %d^n", eCrate[CRATE_SPAWN_MODE])
         fputs(iFile, szData)
     }
 
     client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SAVE", szFile)
     fclose(iFile)
 
+    crateSound(id, SOUND_MENU_NAV)
+    crateMenu(id, MENU_ROOT)
+
     return PLUGIN_HANDLED
 }
 
 stock loadData()
 {
-    new szFile[64], iFile,
+    new szFile[128], iFile,
         szData[64], szKey[32], szValue[32],
-        Float:fOrigin[3], Float:fAngles[3], Float:fDecal[3], iItem,
-        eCrate[CRATE], iCount = -1
+        Float:fOrigin[3], Float:fAngles[3], iItem,
+        iShow, iFlags, iTeam, iSpawn, iCount = -1
 
     get_mapname(szFile, charsmax(szFile))
     format(szFile, charsmax(szFile), "maps/%s_SupplyCrate.ini", szFile)
@@ -1674,89 +2084,114 @@ stock loadData()
         {
             if ( iCount != -1 )
             {
-                crateCreate(0, iItem)
-                ArrayGetArray(g_aCrate, iCount, eCrate)
-
-                xs_vec_copy(fOrigin, eCrate[CRATE_ORIGIN])
-                xs_vec_copy(fAngles, eCrate[CRATE_ANGLES])
-                xs_vec_copy(fDecal, eCrate[CRATE_DECAL])
-                set_pev(eCrate[CRATE_ID], pev_origin, fOrigin)
-                set_pev(eCrate[CRATE_ID], pev_angles, fAngles)
-                eCrate[CRATE_STATE] = STATE_ACTIVE
-                eCrate[CRATE_FRAMERATE] = (2.0 + (eCrate[CRATE_COOLDOWN] - 0.5) / (40.0 - 0.5) * (3.2 - 2.0)) / eCrate[CRATE_COOLDOWN]
-
-                crateSetBox(eCrate)
-                crateSetAnim(eCrate, false)
-                crateSetActive(eCrate)
-                ArraySetArray(g_aCrate, iCount, eCrate)
+                loadDataCrate(fOrigin, fAngles, iShow, iFlags, iTeam, iSpawn, iItem, iCount)
             }
 
             iCount ++
         }
         else
         {
-            strtok(szData, szKey, charsmax(szKey), szValue, charsmax(szValue), '=')
+            strtok(szData, szKey, charsmax( szKey ), szValue, charsmax( szValue ), '=')
             trim(szKey)
             trim(szValue)
 
-            switch( szKey[0] )
+            if ( equal(szKey, "item") )
             {
-                case 'i':
-                {
-                    iItem = str_to_num(szValue)
-                }
-                case 'o':
-                {
-                    strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                    fOrigin[0] = str_to_float(szKey)
+                iItem = str_to_num(szValue)
+            }
+            else if ( equal(szKey, "origin") )
+            {
+                strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                fOrigin[0] = str_to_float(szKey)
 
-                    strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                    fOrigin[1] = str_to_float(szKey)
-                    fOrigin[2] = str_to_float(szValue)
-                }
-                case 'a':
-                {
-                    strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                    fAngles[0] = str_to_float(szKey)
+                strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                fOrigin[1] = str_to_float(szKey)
+                fOrigin[2] = str_to_float(szValue)
+            }
+            else if ( equal(szKey, "angles") )
+            {
+                strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                fAngles[0] = str_to_float(szKey)
 
-                    strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                    fAngles[1] = str_to_float(szKey)
-                    fAngles[2] = str_to_float(szValue)
-                }
-                case 'd':
-                {
-                    strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                    fDecal[0] = str_to_float(szKey)
-
-                    strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                    fDecal[1] = str_to_float(szKey)
-                    fDecal[2] = str_to_float(szValue)
-                }
+                strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                fAngles[1] = str_to_float(szKey)
+                fAngles[2] = str_to_float(szValue)
+            }
+            else if ( equal(szKey, "show") )
+            {
+                iShow = str_to_num(szValue)
+            }
+            else if ( equal(szKey, "flags") )
+            {
+                iFlags = str_to_num(szValue)
+            }
+            else if ( equal(szKey, "team") )
+            {
+                iTeam = str_to_num(szValue)
+            }
+            else if ( equal(szKey, "spawn") )
+            {
+                iSpawn = str_to_num(szValue)
             }
         }
     }
 
     if ( iCount != -1 )
-    {
-        crateCreate(0, iItem)
-        ArrayGetArray(g_aCrate, iCount, eCrate)
-
-        xs_vec_copy(fOrigin, eCrate[CRATE_ORIGIN])
-        xs_vec_copy(fAngles, eCrate[CRATE_ANGLES])
-        xs_vec_copy(fDecal, eCrate[CRATE_DECAL])
-        set_pev(eCrate[CRATE_ID], pev_origin, fOrigin)
-        set_pev(eCrate[CRATE_ID], pev_angles, fAngles)
-        eCrate[CRATE_STATE] = STATE_ACTIVE
-        eCrate[CRATE_FRAMERATE] = (2.0 + (eCrate[CRATE_COOLDOWN] - 0.5) / (40.0 - 0.5) * (3.2 - 2.0)) / eCrate[CRATE_COOLDOWN]
-
-        crateSetBox(eCrate)
-        crateSetAnim(eCrate, false)
-        crateSetActive(eCrate)
-        ArraySetArray(g_aCrate, iCount, eCrate)
-    }
+        loadDataCrate(fOrigin, fAngles, iShow, iFlags, iTeam, iSpawn, iItem, iCount)
 
     fclose(iFile)
     return PLUGIN_HANDLED
+}
+
+stock loadDataCrate(Float:fOrigin[3], Float:fAngles[3], iShow, iFlags, iTeam, iSpawnMode, iItem, iCount)
+{
+    new eCrate[CRATE], Float:fCurrentTime
+
+    fCurrentTime = get_gametime()
+    crateCreate(0, iItem)
+    ArrayGetArray(g_aCrate, iCount, eCrate)
+
+    xs_vec_copy(fOrigin, eCrate[CRATE_ORIGIN])
+    xs_vec_copy(fAngles, eCrate[CRATE_ANGLES])
+    set_pev(eCrate[CRATE_ID], pev_origin, fOrigin)
+    set_pev(eCrate[CRATE_ID], pev_angles, fAngles)
+
+    eCrate[CRATE_NEXT_USE]      = fCurrentTime + 0.25
+    eCrate[CRATE_SHOW]          = iShow
+    eCrate[CRATE_FLAGS]         = iFlags
+    eCrate[CRATE_TEAM]          = iTeam
+    eCrate[CRATE_SPAWN_MODE]    = iSpawnMode
+    eCrate[CRATE_FRAMERATE]     = (2.15 + (eCrate[CRATE_COOLDOWN] - 0.5) / (40.0 - 0.5) * (3.25 - 2.15)) / eCrate[CRATE_COOLDOWN]
+
+    if ( eCrate[CRATE_SHOW] == SHOW_DEFAULT
+    && eCrate[CRATE_SPAWN_MODE] == SPAWN_DELAY
+    && eCrate[CRATE_FLAGS] & FLAG_DEAD )
+        eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
+
+    crateSetBox(eCrate)
+    if ( eCrate[CRATE_FLAGS] & FLAG_SHOW )
+    {
+        crateSetAnim(eCrate, false)
+        crateSetSolid(eCrate)
+    }
+
+    ArraySetArray(g_aCrate, iCount, eCrate)
+}
+
+public crateNoClip(id)
+{
+    set_user_noclip(id, !get_user_noclip(id))
+
+    crateSound(id, SOUND_MENU_NAV)
+    crateMenu(id, MENU_ROOT)
+}
+
+public crateGodMode(id)
+{
+    set_user_godmode(id, !get_user_godmode(id))
+
+    crateSound(id, SOUND_MENU_NAV)
+    crateMenu(id, MENU_ROOT)
 }
 
 public fwdUpdateClientData(id, iSendWeapons, iHandle)
@@ -1777,31 +2212,31 @@ public fwdAddToFullPack(es, e, iEnt, iHost, iHostFlags, iPlayer, pSet)
     || !get_orig_retval() )
         return FMRES_IGNORED
 
-    new eCrate[CRATE]
-    crateFind(iEnt, eCrate)
+    new eCrate[CRATE], bool:bHidden
+    crateGet(eCrate, iEnt)
+    bHidden = !(eCrate[CRATE_FLAGS] & FLAG_SHOW)
 
     if ( !g_ePlayerData[iHost][PDATA_CRATE_ACTION] )
     {
-        if ( eCrate[CRATE_FLAGS] & FLAG_DUMMY
-        || (eCrate[CRATE_STATE] != STATE_ACTIVE && eCrate[CRATE_STATE] != STATE_INACTIVE) )
+        if ( bHidden )
             set_es(es, ES_Effects, EF_NODRAW)
     }
     else if ( eCrate[CRATE_FLAGS] & FLAG_SELECT )
     {
-        set_es(es, ES_RenderMode, kRenderTransAlpha)
+        if ( eCrate[CRATE_CAPACITY] > 0.0 ) set_es(es, ES_RenderColor, g_eSettings[SETTING_COLOR_ACTIVE])
+        else                                set_es(es, ES_RenderColor, g_eSettings[SETTING_COLOR_INACTIVE])
+
         set_es(es, ES_RenderAmt, 32)
-
-        switch( eCrate[CRATE_STATE] )
-        {
-            case STATE_ACTIVE:   set_es(es, ES_RenderColor, g_eSettings[SETTING_COLOR_ACTIVE])
-            case STATE_INACTIVE: set_es(es, ES_RenderColor, g_eSettings[SETTING_COLOR_INACTIVE])
-        }
-
         set_es(es, ES_RenderFx, kRenderFxGlowShell)
+
+        if ( bHidden )
+            set_es(es, ES_RenderMode, kRenderTransAlpha)
     }
-    else if ( eCrate[CRATE_STATE] == STATE_INVALID
-    || eCrate[CRATE_FLAGS] & FLAG_DUMMY )
+    else if ( bHidden )
     {
+        if ( eCrate[CRATE_FLAGS] & FLAG_GHOST && eCrate[CRATE_FLAGS] & FLAG_VALID )
+            return FMRES_IGNORED
+
         set_es(es, ES_RenderMode, kRenderTransAlpha)
         set_es(es, ES_RenderAmt, g_eSettings[SETTING_GHOST_ALPHA])
     }
@@ -1816,7 +2251,6 @@ public fwdSpawn(iEnt)
 
     set_pev(iEnt, pev_solid, SOLID_NOT)
     set_pev(iEnt, pev_movetype, MOVETYPE_FLY)
-    set_pev(iEnt, pev_nextthink, get_gametime() + 0.1)
 
     return HAM_IGNORED
 }
@@ -1826,26 +2260,35 @@ public fwdTakeDamage(iEnt, iInflictor, iAttacker, Float:fDamage, iDamageBits)
     if ( !isCrate(iEnt) )
         return HAM_IGNORED
 
-    new eCrate[CRATE], iItem,
-        Float:fHealth
+    new eCrate[CRATE], iItem
+    if ( (iItem = crateGet(eCrate, iEnt)) == -1
+    || !(eCrate[CRATE_FLAGS] & FLAG_SHOW) )
+        return HAM_IGNORED
 
-    iItem = crateFind(iEnt, eCrate)
+    new Float:fHealth, Float:fCurrentTime
     pev(iEnt, pev_health, fHealth)
+    fCurrentTime = get_gametime()
 
-    if ( !(eCrate[CRATE_FLAGS] & FLAG_BREAK) )
+    if ( !(eCrate[CRATE_FLAGS] & FLAG_BREAK)
+    || eCrate[CRATE_SHOW] == SHOW_FORCE_SHOW )
     {
         SetHamParamFloat(4, 0.0)
     }
-    else if ( fDamage >= fHealth
-    && iItem != -1
-    && !(eCrate[CRATE_FLAGS] & FLAG_DUMMY) )
+    else if ( fDamage >= fHealth )
     {
-        eCrate[CRATE_FLAGS] |= FLAG_DUMMY
-        crateKill(eCrate[CRATE_ID])
-        crateDummy(eCrate, iItem)
+        eCrate[CRATE_FLAGS] &= ~FLAG_SHOW
+        crateState(eCrate, false, true)
+
+        crateGib(eCrate[CRATE_ID])
+        if ( eCrate[CRATE_SHOW] == SHOW_DEFAULT
+        && eCrate[CRATE_SPAWN_MODE] == SPAWN_DELAY )
+            eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
 
         if ( eCrate[CRATE_FLAGS] & FLAG_EXPLODE )
             crateExplode(eCrate)
+
+        ArraySetArray(g_aCrate, iItem, eCrate)
+        SetHamParamFloat(4, 0.0)
     }
 
     return HAM_IGNORED
@@ -1856,11 +2299,14 @@ public fwdTraceAttack(iEnt, iAttacker, Float:fDamage, Float:fDirection[3], iTr, 
     if ( !isCrate(iEnt) )
         return HAM_IGNORED
 
-    new Float:fEnd[3]
+    new eCrate[CRATE], Float:fEnd[3]
+    crateGet(eCrate, iEnt)
     get_tr2(iTr, TR_vecEndPos, fEnd)
 
-    crateEmitParticles(fEnd)
-    crateEmitSparks(fEnd)
+    crateParticles(fEnd)
+    crateSparks(fEnd)
+    if ( eCrate[CRATE_FLAGS] & FLAG_SOUND )
+        crateSound(iEnt, SOUND_METAL, CHAN_VOICE, false)
 
     return HAM_IGNORED
 }
@@ -1871,25 +2317,26 @@ public fwdPreThink(id)
         return HAM_IGNORED
 
     static eCrate[CRATE], iItem,
-    iEnt, iButton
+        iEnt, iButton, Float:fCurrentTime
 
     iButton = pev(id, pev_button)
+    fCurrentTime = get_gametime()
 
     if ( g_ePlayerData[id][PDATA_CRATE_GHOST] )
     {
-        if ( get_gametime() > g_ePlayerData[id][PDATA_NEXT_OFFSET] )
+        if ( fCurrentTime > g_ePlayerData[id][PDATA_NEXT_OFFSET] )
         {
             if ( iButton & IN_ATTACK )
             {
                 g_ePlayerData[id][PDATA_OFFSET]      += g_eSettings[SETTING_OFFSET_STEP]
-                g_ePlayerData[id][PDATA_OFFSET]      = floatclamp(g_ePlayerData[id][PDATA_OFFSET], g_eSettings[SETTING_OFFSET_MIN], g_eSettings[SETTING_OFFSET_MAX])
-                g_ePlayerData[id][PDATA_NEXT_OFFSET] = get_gametime() + g_eSettings[SETTING_OFFSET_FREQ]
+                g_ePlayerData[id][PDATA_OFFSET]      = floatclamp(g_ePlayerData[id][PDATA_OFFSET], g_eSettings[SETTING_OFFSET][0], g_eSettings[SETTING_OFFSET][1])
+                g_ePlayerData[id][PDATA_NEXT_OFFSET] = fCurrentTime + g_eSettings[SETTING_OFFSET_FREQ]
             }
             else if ( iButton & IN_ATTACK2 )
             {
                 g_ePlayerData[id][PDATA_OFFSET]      -= g_eSettings[SETTING_OFFSET_STEP]
-                g_ePlayerData[id][PDATA_OFFSET]      = floatclamp(g_ePlayerData[id][PDATA_OFFSET], g_eSettings[SETTING_OFFSET_MIN], g_eSettings[SETTING_OFFSET_MAX])
-                g_ePlayerData[id][PDATA_NEXT_OFFSET] = get_gametime() + g_eSettings[SETTING_OFFSET_FREQ]
+                g_ePlayerData[id][PDATA_OFFSET]      = floatclamp(g_ePlayerData[id][PDATA_OFFSET], g_eSettings[SETTING_OFFSET][0], g_eSettings[SETTING_OFFSET][1])
+                g_ePlayerData[id][PDATA_NEXT_OFFSET] = fCurrentTime + g_eSettings[SETTING_OFFSET_FREQ]
             }
         }
 
@@ -1899,15 +2346,20 @@ public fwdPreThink(id)
     else
     {
         if ( (iEnt = crateUse(id))
-        && (iItem = crateFind(iEnt, eCrate)) != -1
-        && (eCrate[CRATE_STATE] == STATE_ACTIVE || eCrate[CRATE_STATE] == STATE_INACTIVE) )
+        && ((iItem = crateGet(eCrate, iEnt)) != -1)
+        && eCrate[CRATE_FLAGS] & FLAG_SHOW
+        && ( !g_ePlayerData[id][PDATA_CRATE_USE] || g_ePlayerData[id][PDATA_CRATE_USE] == eCrate[CRATE_ID] ) )
         {
-            if ( get_gametime() >= eCrate[CRATE_NEXT_USE]
-            && (!eCrate[CRATE_OCCUPIED] || eCrate[CRATE_OCCUPIED] == id) )
-                crateSupply(id, eCrate, iItem)
+            if ( fCurrentTime >= eCrate[CRATE_NEXT_USE] )
+                crateSupply(id, eCrate, iItem, fCurrentTime)
 
             iButton &= ~IN_USE
             set_pev(id, pev_button, iButton)
+        }
+        else if ( g_ePlayerData[id][PDATA_CRATE_USE]
+        && (crateGet(eCrate, g_ePlayerData[id][PDATA_CRATE_USE]) != -1) )
+        {
+            g_ePlayerData[id][PDATA_CRATE_USE] = 0
         }
     }
 
@@ -1916,22 +2368,26 @@ public fwdPreThink(id)
 
 public fwdKilled(id, iAttacker, bGib)
 {
+    g_ePlayerData[id][PDATA_CRATE_ACTION] = false
+    g_ePlayerData[id][PDATA_CRATE_MENU]   = 0
+    g_ePlayerData[id][PDATA_CRATE_USE]    = 0
+
     if ( g_ePlayerData[id][PDATA_CRATE_GHOST] )
     {
         new eCrate[CRATE], iItem
-
-        if ( (iItem = crateFind(g_ePlayerData[id][PDATA_CRATE_GHOST], eCrate)) != -1 )
+        if ( (iItem = crateGet(eCrate, g_ePlayerData[id][PDATA_CRATE_GHOST])) != -1 )
         {
             crateKill(g_ePlayerData[id][PDATA_CRATE_GHOST])
             crateRemove(iItem)
-            g_ePlayerData[id][PDATA_CRATE_GHOST] = 0
         }
+
+        g_ePlayerData[id][PDATA_CRATE_GHOST] = 0
     }
 
     return HAM_IGNORED
 }
 
-stock bool:crateTrace(eCrate[CRATE], id)
+stock bool:crateTrace(eCrate[CRATE], id, iItem)
 {
     new Float:fVec1[3]
 
@@ -1953,7 +2409,7 @@ stock bool:crateTrace(eCrate[CRATE], id)
     crateSetOffset(eCrate)
     set_pev(eCrate[CRATE_ID], pev_origin, eCrate[CRATE_ORIGIN])
 
-    return crateRadius(eCrate)
+    return crateStuck(eCrate, iItem)
 }
 
 stock crateUse(id)
@@ -1990,6 +2446,27 @@ stock crateUse(id)
     return 0
 }
 
+stock bool:crateStuck(eCrate[CRATE], iItem)
+{
+    new iEnt = -1
+
+    while( (iEnt = engfunc(EngFunc_FindEntityInSphere, iEnt, eCrate[CRATE_ORIGIN], 20.0)) )
+    {
+        if ( pev_valid(iEnt)
+        && iEnt != eCrate[CRATE_ID]
+        && pev(iEnt, pev_solid) >= SOLID_BBOX )
+        {
+            eCrate[CRATE_FLAGS] &= ~FLAG_VALID
+            ArraySetArray(g_aCrate, iItem, eCrate)
+            return false
+        }
+    }
+
+    eCrate[CRATE_FLAGS] |= FLAG_VALID
+    ArraySetArray(g_aCrate, iItem, eCrate)
+    return true
+}
+
 stock bool:crateAllow(id, eCrate[CRATE])
 {
     new iWeaponID
@@ -2002,39 +2479,47 @@ stock bool:crateAllow(id, eCrate[CRATE])
     return true
 }
 
-stock crateSupply(id, eCrate[CRATE], iItem)
+stock crateSupply(id, eCrate[CRATE], iItem, Float:fCurrentTime)
 {
     if ( eCrate[CRATE_CAPACITY] > 0
-    && eCrate[CRATE_STATE] == STATE_ACTIVE
-    && (CsTeams:eCrate[CRATE_TEAM] & cs_get_user_team(id))
+    && CsTeams:eCrate[CRATE_TEAM] & cs_get_user_team(id)
     && crateAllow(id, eCrate) )
     {
+        if ( !g_ePlayerData[id][PDATA_CRATE_USE] )
+        {
+            g_ePlayerData[id][PDATA_CRATE_USE] = eCrate[CRATE_ID]
+
+            if ( eCrate[CRATE_FLAGS] & FLAG_SOUND )
+                crateSound(eCrate[CRATE_ID], SOUND_SUPPLY, .bPlayer = false)
+        }
+
         switch( eCrate[CRATE_CLASS] )
         {
-            case CLASS_AMMO:     supplyAmmo(id, eCrate)
-            case CLASS_GRENADES: supplyGrenades(id, eCrate)
-            case CLASS_MARKET:   supplyMarket(id, eCrate)
+            case CLASS_AMMO:     supplyAmmo(id, eCrate, fCurrentTime)
+            case CLASS_GRENADES: supplyGrenades(id, eCrate, fCurrentTime)
+            case CLASS_MARKET:   supplyMarket(id, eCrate, fCurrentTime)
         }
 
         if ( !eCrate[CRATE_CAPACITY] )
         {
-            eCrate[CRATE_NEXT_EMPTY] = get_gametime() + 1.0
-
-            if ( eCrate[CRATE_REFILL] != -1 )
-                eCrate[CRATE_NEXT_REFILL] = get_gametime() + eCrate[CRATE_REFILL]
+            crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
+            eCrate[CRATE_NEXT_EMPTY] = fCurrentTime + 1.0
+            g_ePlayerData[id][PDATA_CRATE_USE] = 0
         }
+
+        ArraySetArray(g_aCrate, iItem, eCrate)
     }
-    else if ( get_gametime() >= eCrate[CRATE_NEXT_EMPTY]
+    else if ( fCurrentTime >= eCrate[CRATE_NEXT_EMPTY]
     && eCrate[CRATE_FLAGS] & FLAG_SOUND )
     {
-        eCrate[CRATE_NEXT_EMPTY] = get_gametime() + 1.0
-        crateSound(eCrate[CRATE_ID], SOUND_EMPTY, false)
-    }
+        crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
+        eCrate[CRATE_NEXT_EMPTY] = fCurrentTime + 1.0
 
-    ArraySetArray(g_aCrate, iItem, eCrate)
+        ArraySetArray(g_aCrate, iItem, eCrate)
+    }
 }
 
-supplyAmmo(id, eCrate[CRATE])
+stock supplyAmmo(id, eCrate[CRATE], Float:fCurrentTime)
 {
     new iWeapon, iClip, iAmmo, iBoost
     iWeapon = cs_get_user_weapon(id, iClip, iAmmo)
@@ -2055,25 +2540,24 @@ supplyAmmo(id, eCrate[CRATE])
         if ( eCrate[CRATE_MODE] & CRATE_FLAG_VESTHELM ) cs_set_user_armor(id, eCrate[CRATE_ARMOR], CS_ARMOR_VESTHELM)
 
         eCrate[CRATE_CAPACITY] -= 1.0
-        eCrate[CRATE_OCCUPIED] = id
-        eCrate[CRATE_NEXT_USE] = get_gametime() + eCrate[CRATE_COOLDOWN]
+        eCrate[CRATE_NEXT_USE] = fCurrentTime + eCrate[CRATE_COOLDOWN]
         crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_OPENCLOSE, eCrate[CRATE_FRAMERATE])
 
         if ( !iClip )
             client_cmd(id, "+attack; wait; -attack;")
 
         if ( eCrate[CRATE_FLAGS] & FLAG_SOUND )
-            crateSound(id, SOUND_SUPPLY)
+            crateSound(eCrate[CRATE_ID], SOUND_SUPPLY, .bPlayer = false)
     }
-    else if ( get_gametime() >= eCrate[CRATE_NEXT_EMPTY]
+    else if ( fCurrentTime >= eCrate[CRATE_NEXT_EMPTY]
     && eCrate[CRATE_FLAGS] & FLAG_SOUND )
     {
-        eCrate[CRATE_NEXT_EMPTY] = get_gametime() + 1.0
-        crateSound(eCrate[CRATE_ID], SOUND_EMPTY, false)
+        eCrate[CRATE_NEXT_EMPTY] = fCurrentTime + 1.0
+        crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
     }
 }
 
-supplyGrenades(id, eCrate[CRATE])
+stock supplyGrenades(id, eCrate[CRATE], Float:fCurrentTime)
 {
     if ( eCrate[CRATE_MODE] & CRATE_FLAG_HE )       grenadeAdd(id, CSW_HEGRENADE, "weapon_hegrenade", eCrate[CRATE_FACTOR])
     if ( eCrate[CRATE_MODE] & CRATE_FLAG_FB1 )      grenadeAdd(id, CSW_FLASHBANG, "weapon_flashbang", eCrate[CRATE_FACTOR])
@@ -2083,15 +2567,14 @@ supplyGrenades(id, eCrate[CRATE])
     if ( eCrate[CRATE_MODE] & CRATE_FLAG_VESTHELM ) cs_set_user_armor(id, eCrate[CRATE_ARMOR], CS_ARMOR_VESTHELM)
 
     eCrate[CRATE_CAPACITY] -= 1.0
-    eCrate[CRATE_OCCUPIED] = id
-    eCrate[CRATE_NEXT_USE] = get_gametime() + eCrate[CRATE_COOLDOWN]
+    eCrate[CRATE_NEXT_USE] = fCurrentTime + eCrate[CRATE_COOLDOWN]
     crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_OPENCLOSE, eCrate[CRATE_FRAMERATE])
 
     if ( eCrate[CRATE_FLAGS] & FLAG_SOUND )
-        crateSound(id, SOUND_SUPPLY)
+        crateSound(eCrate[CRATE_ID], SOUND_SUPPLY, .bPlayer = false)
 }
 
-supplyMarket(id, eCrate[CRATE])
+stock supplyMarket(id, eCrate[CRATE], Float:fCurrentTime)
 {
     new iWeapon
     iWeapon = cs_get_user_weapon(id)
@@ -2101,18 +2584,17 @@ supplyMarket(id, eCrate[CRATE])
         marketSell(id, iWeapon, eCrate)
 
         eCrate[CRATE_CAPACITY] -= 1.0
-        eCrate[CRATE_OCCUPIED] = id
-        eCrate[CRATE_NEXT_USE] = get_gametime() + eCrate[CRATE_COOLDOWN]
+        eCrate[CRATE_NEXT_USE] = fCurrentTime + eCrate[CRATE_COOLDOWN]
         crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_OPENCLOSE, eCrate[CRATE_FRAMERATE])
 
         if ( eCrate[CRATE_FLAGS] & FLAG_SOUND )
-            crateSound(id, SOUND_SELL)
+            crateSound(eCrate[CRATE_ID], SOUND_SELL, .bPlayer = false)
     }
-    else if ( get_gametime() >= eCrate[CRATE_NEXT_EMPTY]
+    else if ( fCurrentTime >= eCrate[CRATE_NEXT_EMPTY]
     && eCrate[CRATE_FLAGS] & FLAG_SOUND )
     {
-        eCrate[CRATE_NEXT_EMPTY] = get_gametime() + 1.0
-        crateSound(eCrate[CRATE_ID], SOUND_EMPTY, false)
+        eCrate[CRATE_NEXT_EMPTY] = fCurrentTime + 1.0
+        crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
     }
 }
 
@@ -2177,7 +2659,6 @@ stock crateSetOffset(eCrate[CRATE])
     xs_vec_sub(eCrate[CRATE_ORIGIN], Float:{0.0, 0.0, 9999.9}, fVec1)
     engfunc(EngFunc_TraceLine, eCrate[CRATE_ORIGIN], fVec1, DONT_IGNORE_MONSTERS, eCrate[CRATE_ID], 0)
     get_tr2(0, TR_vecEndPos, eCrate[CRATE_ORIGIN])
-    xs_vec_copy(eCrate[CRATE_ORIGIN], eCrate[CRATE_DECAL])
 
     for ( new i = 0; i < 6; i ++ )
     {
@@ -2200,28 +2681,28 @@ stock crateSetAnim(eCrate[CRATE], bool:bPlaySound = true)
 {
     if ( eCrate[CRATE_CAPACITY] > 0.0 )
     {
-        if ( eCrate[CRATE_DELAY] > 0.0 )
+        if ( eCrate[CRATE_DELAY_ACTIVE] > 0.0 )
         {
             eCrate[CRATE_CAPACITY] = 0.0
-            eCrate[CRATE_NEXT_REFILL] = get_gametime() + eCrate[CRATE_DELAY]
+            eCrate[CRATE_NEXT_REFILL] = get_gametime() + eCrate[CRATE_DELAY_ACTIVE]
 
             if ( bPlaySound && (eCrate[CRATE_FLAGS] & FLAG_SOUND) )
-                crateSound(eCrate[CRATE_ID], SOUND_EMPTY, false)
+                crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
         }
         else
         {
             if ( bPlaySound && (eCrate[CRATE_FLAGS] & FLAG_SOUND) )
-                crateSound(eCrate[CRATE_ID], SOUND_PLACE, false)
+                crateSound(eCrate[CRATE_ID], SOUND_PLACE, .bPlayer = false)
         }
     }
     else
     {
         if ( bPlaySound && (eCrate[CRATE_FLAGS] & FLAG_SOUND) )
-            crateSound(eCrate[CRATE_ID], SOUND_EMPTY, false)
+            crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
     }
 }
 
-stock crateSetActive(eCrate[CRATE])
+stock crateSetSolid(eCrate[CRATE])
 {
     new Float:fMins[3],
         Float:fMaxs[3]
@@ -2243,6 +2724,129 @@ stock crateSetSeq(iEnt, iSequence, Float:fFrameRate)
     set_pev(iEnt, pev_frame, 0.0)
     set_pev(iEnt, pev_framerate, fFrameRate)
     set_pev(iEnt, pev_animtime, get_gametime())
+}
+
+public crateSparks(Float:fOrigin[])
+{
+    message_begin_f(MSG_BROADCAST, SVC_TEMPENTITY)
+    write_byte(TE_SPARKS)
+    write_coord_f(fOrigin[0])
+    write_coord_f(fOrigin[1])
+    write_coord_f(fOrigin[2])
+    message_end()
+}
+
+stock crateParticles(Float:fOrigin[3])
+{
+    message_begin_f(MSG_PVS, SVC_TEMPENTITY, fOrigin)
+    write_byte(TE_GUNSHOTDECAL)
+    write_coord_f(fOrigin[0])
+    write_coord_f(fOrigin[1])
+    write_coord_f(fOrigin[2])
+    write_short(0)
+    write_byte(random_num(41, 45))
+    message_end()
+}
+
+stock crateExplode(eCrate[CRATE])
+{
+    new Float:fDistance, Float:fRatio, Float:fDamage,
+        Float:fVec1[3], Float:fVec2[3], iEnt = -1
+
+    xs_vec_copy(eCrate[CRATE_ORIGIN], fVec1)
+    message_begin_f(MSG_PVS, SVC_TEMPENTITY, fVec1)
+    write_byte(TE_EXPLOSION)
+    write_coord_f(fVec1[0])
+    write_coord_f(fVec1[1])
+    write_coord_f(fVec1[2])
+    write_short(g_eSettings[SETTING_SPRITE_ZEROGXPLODE])
+    write_byte(floatround(eCrate[CRATE_EXPLODE_RADIUS] / 15.0))
+    write_byte(15)
+    write_byte(TE_EXPLFLAG_NONE)
+    message_end()
+
+    xs_vec_sub(fVec1, Float:{0.0, 0.0, 9999.9}, fVec2)
+    engfunc(EngFunc_TraceLine, fVec1, fVec2, IGNORE_MONSTERS, eCrate[CRATE_ID], 0)
+    get_tr2(0, TR_vecEndPos, fVec2)
+    message_begin(MSG_BROADCAST, SVC_TEMPENTITY)
+    write_byte(TE_WORLDDECAL)
+    write_coord_f(fVec2[0])
+    write_coord_f(fVec2[1])
+    write_coord_f(fVec2[2])
+    write_byte(random_num(46, 48))
+    message_end()
+
+    while ( (iEnt = engfunc(EngFunc_FindEntityInSphere, iEnt, eCrate[CRATE_ORIGIN], eCrate[CRATE_EXPLODE_RADIUS])) )
+    {
+        if ( !pev_valid(iEnt)
+        || pev(iEnt, pev_takedamage) == DAMAGE_NO
+        || iEnt == eCrate[CRATE_ID] )
+            continue
+
+        pev(iEnt, pev_absmin, fVec1)
+        pev(iEnt, pev_absmax, fVec2)
+        xs_vec_add(fVec1, fVec2, fVec1)
+        xs_vec_mul_scalar(fVec1, 0.5, fVec1)
+
+        fDistance = xs_vec_distance(eCrate[CRATE_ORIGIN], fVec1)
+        if ( fDistance > eCrate[CRATE_EXPLODE_RADIUS] )
+            continue
+
+        fRatio = 1.0 - fDistance / eCrate[CRATE_EXPLODE_RADIUS]
+        fDamage = eCrate[CRATE_EXPLODE_DAMAGE] * fRatio
+
+        fakedamage(iEnt, "weapon_hegrenade", fDamage, DMG_GRENADE)
+    }
+}
+
+stock crateGib(iEnt)
+{
+    new Float:fOrigin[3]
+    pev(iEnt, pev_origin, fOrigin)
+
+    message_begin_f(MSG_PVS, SVC_TEMPENTITY, fOrigin)
+    write_byte(TE_BREAKMODEL)
+    write_coord_f(fOrigin[0])
+    write_coord_f(fOrigin[1])
+    write_coord_f(fOrigin[2])
+    write_coord_f(32.0)
+    write_coord_f(32.0)
+    write_coord_f(32.0)
+    write_coord_f(0.0)
+    write_coord_f(0.0)
+    write_coord_f(random_float(g_eSettings[SETTING_BREAK_VELO_Z][0], g_eSettings[SETTING_BREAK_VELO_Z][1]))
+    write_byte(random_num(g_eSettings[SETTING_BREAK_VELO_RANDOM][0], g_eSettings[SETTING_BREAK_VELO_RANDOM][1]))
+    write_short(g_eSettings[SETTING_DEFAULT_GIB])
+    write_byte(random_num(g_eSettings[SETTING_BREAK_COUNT][0], g_eSettings[SETTING_BREAK_COUNT][1]))
+    write_byte(random_num(g_eSettings[SETTING_BREAK_LIFE][0], g_eSettings[SETTING_BREAK_LIFE][1]))
+    write_byte(BREAK_FLAG_METAL)
+    message_end()
+}
+
+stock crateState(eCrate[CRATE], bool:bShow, bool:bFlag)
+{
+    if ( bShow )
+    {
+        set_pev(eCrate[CRATE_ID], pev_solid, SOLID_BBOX)
+        set_pev(eCrate[CRATE_ID], pev_takedamage, DAMAGE_AIM)
+
+        if ( bFlag )
+        {
+            set_pev(eCrate[CRATE_ID], pev_health, eCrate[CRATE_HEALTH])
+            eCrate[CRATE_CAPACITY] = eCrate[CRATE_CAPACITY_MAX]
+
+            eCrate[CRATE_FLAGS] &= ~FLAG_DEAD
+            crateSetAnim(eCrate)
+        }
+    }
+    else
+    {
+        set_pev(eCrate[CRATE_ID], pev_solid, SOLID_NOT)
+        set_pev(eCrate[CRATE_ID], pev_takedamage, DAMAGE_NO)
+
+        if ( bFlag )
+            eCrate[CRATE_FLAGS] |= FLAG_DEAD
+    }
 }
 
 stock crateSound(iEnt, iSound, iChan = CHAN_ITEM, bool:bPlayer = true, iFlags = 0)
@@ -2269,113 +2873,6 @@ stock crateSound(iEnt, iSound, iChan = CHAN_ITEM, bool:bPlayer = true, iFlags = 
         engfunc(EngFunc_EmitSound, iEnt, iChan, szSample, VOL_NORM, ATTN_NORM, iFlags, PITCH_NORM)
 }
 
-stock bool:crateRadius(eCrate[CRATE])
-{
-    new iEnt = -1
-
-    while( (iEnt = engfunc(EngFunc_FindEntityInSphere, iEnt, eCrate[CRATE_ORIGIN], 15.0)) )
-    {
-        if ( pev_valid(iEnt)
-        && iEnt != eCrate[CRATE_ID]
-        && (isCrate(iEnt) || pev(iEnt, pev_solid) >= SOLID_BBOX) )
-            return false
-    }
-
-    return true
-}
-
-stock crateEmitParticles(Float:fOrigin[3])
-{
-    message_begin_f(MSG_PVS, SVC_TEMPENTITY, fOrigin)
-    write_byte(TE_GUNSHOTDECAL)
-    write_coord_f(fOrigin[0])
-    write_coord_f(fOrigin[1])
-    write_coord_f(fOrigin[2])
-    write_short(0)
-    write_byte(random_num(41, 45))
-    message_end()
-}
-
-stock crateEmitSparks(Float:fOrigin[3])
-{
-    message_begin_f(MSG_PVS, SVC_TEMPENTITY, fOrigin)
-    write_byte(TE_SPARKS)
-    write_coord_f(fOrigin[0])
-    write_coord_f(fOrigin[1])
-    write_coord_f(fOrigin[2])
-    message_end()
-}
-
-stock crateExplode(eCrate[CRATE])
-{
-    new Float:fOrigin[3]
-    xs_vec_copy(eCrate[CRATE_ORIGIN], fOrigin)
-
-    explodeFireBall(eCrate, fOrigin)
-    explodeDamage(eCrate, fOrigin)
-}
-
-stock explodeFireBall(eCrate[CRATE], Float:fOrigin[3])
-{
-    new iExplosion
-    iExplosion = engfunc(EngFunc_CreateNamedEntity, engfunc(EngFunc_AllocString, "env_explosion"))
-
-    if ( !pev_valid(iExplosion) )
-        return;
-
-    new iSpawnFlags,
-        szRadius[16], Float:fRadius
-
-    iSpawnFlags = SF_ENVEXPLOSION_NODAMAGE | SF_ENVEXPLOSION_NODECAL
-    fRadius = eCrate[CRATE_EXPLODE_RADIUS] / 2.5
-    fRadius = floatclamp(fRadius, 10.0, 150.0)
-    formatex(szRadius, charsmax(szRadius), "%.2f", fRadius)
-    DispatchKeyValue(iExplosion, "iMagnitude", szRadius)
-
-    set_pev(iExplosion, pev_origin, fOrigin)
-    set_pev(iExplosion, pev_spawnflags, iSpawnFlags)
-    xs_vec_copy(eCrate[CRATE_DECAL], fOrigin)
-
-    message_begin(MSG_BROADCAST, SVC_TEMPENTITY)
-    write_byte(TE_WORLDDECAL)
-    write_coord_f(fOrigin[0])
-    write_coord_f(fOrigin[1])
-    write_coord_f(fOrigin[2])
-    write_byte(random_num(46, 48))
-    message_end()
-
-    dllfunc(DLLFunc_Spawn, iExplosion)
-    dllfunc(DLLFunc_Use, iExplosion, iExplosion)
-}
-
-stock explodeDamage(eCrate[CRATE], Float:fOrigin[3])
-{
-    new Float:fDistance, Float:fRatio, Float:fDamage,
-        Float:fVec1[3], Float:fVec2[3], iEnt = -1
-
-    while( (iEnt = engfunc(EngFunc_FindEntityInSphere, iEnt, fOrigin, eCrate[CRATE_EXPLODE_RADIUS])) )
-    {
-        if ( !pev_valid(iEnt)
-        || pev(iEnt, pev_takedamage) == DAMAGE_NO
-        || iEnt == eCrate[CRATE_ID] )
-            continue
-
-        pev(iEnt, pev_absmin, fVec1)
-        pev(iEnt, pev_absmax, fVec2)
-        xs_vec_add(fVec1, fVec2, fVec1)
-        xs_vec_mul_scalar(fVec1, 0.5, fVec1)
-
-        fDistance = xs_vec_distance(fOrigin, fVec1)
-        if ( fDistance > eCrate[CRATE_EXPLODE_RADIUS] )
-            continue
-
-        fRatio = 1.0 - fDistance / eCrate[CRATE_EXPLODE_RADIUS]
-        fDamage = eCrate[CRATE_EXPLODE_DAMAGE] * fRatio
-
-        ExecuteHam(Ham_TakeDamage, iEnt, eCrate[CRATE_ID], eCrate[CRATE_ID], fDamage, DMG_GRENADE)
-    }
-}
-
 stock ammoPickup(id, iAmount)
 {
     new iActiveWeapon,
@@ -2387,6 +2884,14 @@ stock ammoPickup(id, iAmount)
     message_begin(MSG_ONE_UNRELIABLE, g_iAmmoPickup, .player = id)
     write_byte(iAmmoType)
     write_byte(iAmount)
+    message_end()
+}
+
+
+stock bombPickup(id, iGrenade)
+{
+    message_begin(MSG_ONE_UNRELIABLE, g_iWeapPickup, .player = id)
+    write_byte(iGrenade)
     message_end()
 }
 
@@ -2447,18 +2952,21 @@ stock marketSell(id, iWeapon, eCrate[CRATE])
     cs_set_user_money(id, iMoney, 1)
 }
 
-stock bool:isCrate(iEnt)
+stock grenadeAdd(id, iGrenade, szGrenade[], Float:fFactor)
 {
-    new szEnt[32]
-    pev(iEnt, pev_classname, szEnt, charsmax(szEnt))
+    new iAmmo
+    iAmmo = cs_get_user_bpammo(id, iGrenade)
 
-    for ( new i = 0; i < sizeof(g_szCN); i ++ )
+    if ( !iAmmo )
     {
-        if ( equali(szEnt, g_szCN[i]) )
-            return true
+        give_item(id, szGrenade)
+        cs_set_user_bpammo(id, iGrenade, floatround(fFactor))
     }
-
-    return false
+    else
+    {
+        bombPickup(id, iGrenade)
+        cs_set_user_bpammo(id, iGrenade, iAmmo + floatround(fFactor))
+    }
 }
 
 stock isGrenade(iEnt)
@@ -2473,38 +2981,26 @@ stock isGrenade(iEnt)
     return 0
 }
 
-stock grenadeAdd(id, iGrenade, szGrenade[], Float:fFactor)
+stock crateGet(eCrate[CRATE], iEnt)
 {
-    new iAmmo
-    iAmmo = cs_get_user_bpammo(id, iGrenade)
+    new iItem
+    iItem = pev(iEnt, CRATE_ARRAY_ITEM)
+    if ( iItem < 0 || iItem >= g_iCrate )
+        return -1
 
-    if ( !iAmmo )
-    {
-        give_item(id, szGrenade)
-        cs_set_user_bpammo(id, iGrenade, floatround(fFactor * 1.0))
-    }
-    else
-    {
-        cs_set_user_bpammo(id, iGrenade, iAmmo + floatround(fFactor * 1.0))
-    }
+    ArrayGetArray(g_aCrate, iItem, eCrate)
+    return iItem
+}
+
+stock bool:isCrate(iEnt)
+{
+    return pev(iEnt, pev_impulse) == CRATE_KEY
 }
 
 stock crateKill(iEnt)
 {
     if ( pev_valid(iEnt) )
         set_pev(iEnt, pev_flags, pev(iEnt, pev_flags) | FL_KILLME)
-}
-
-stock crateFind(iEnt, eCrate[CRATE])
-{
-    for ( new i = 0; i < g_iCrate; i ++ )
-    {
-        ArrayGetArray(g_aCrate, i, eCrate)
-        if ( eCrate[CRATE_ID] == iEnt )
-            return i
-    }
-
-    return -1
 }
 
 stock LogConfigError(const iLine, const szText[], any:...)

@@ -3,7 +3,6 @@ CRATE_CHAT_TAG                      = ^4[CRATE]^1
 CRATE_CHAT_LIMIT                    = You've reached the maximum number of crates ^4%d
 CRATE_CHAT_NO_CRATE                 = There are no crates available
 CRATE_CHAT_NO_DATA                  = crate data hasn't been found
-CRATE_CHAT_NO_ACTION                = crate action is disabled
 CRATE_CHAT_CREATE_NEW               = ^3%s ^1created
 CRATE_CHAT_REMOVE_CURRENT           = ^3%s ^1removed
 CRATE_CHAT_REMOVE_ALL               = All crates removed
@@ -48,7 +47,7 @@ CRATE_NEVER                         = \y[NEVER]
 CRATE_DELAY                         = \y[DELAY]
 CRATE_ROUND_START                   = \y[ROUND-START]
 
-CRATE_MENU_TITLE                    = \dcrate - Version \y2.0
+CRATE_MENU_TITLE                    = \dSupply Crate - Version \y%s
 CRATE_MENU_TITLE_PAGE               = \yPage:\r
 CRATE_ROOT_CREATE                   = Create crate
 CRATE_ROOT_REMOVE                   = Remove crate
