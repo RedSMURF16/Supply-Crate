@@ -489,7 +489,8 @@ public plugin_end()
 public cmdMenu(id, iLevel, iCmd)
 {
     if ( !cmd_access(id, iLevel, iCmd, 1)
-    || !is_user_alive(id) )
+    || !is_user_alive(id)
+    || g_ePlayerData[id][PDATA_CRATE_GHOST] )
         return PLUGIN_HANDLED
 
     crateSound(id, SOUND_MENU_NAV)
