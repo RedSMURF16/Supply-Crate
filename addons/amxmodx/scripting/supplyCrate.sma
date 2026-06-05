@@ -676,10 +676,6 @@ stock ReadFile()
                     }
                     case SECTION_MAIN_SETTINGS:
                     {
-                        strtok(szData, szKey, charsmax(szKey), szValue, charsmax(szValue), '=')
-                        trim(szKey)
-                        trim(szValue)
-
                         if ( equali(szKey, "SETTING_DEFAULT_MODEL") )
                         {
                             copy(g_eSettings[SETTING_DEFAULT_MODEL], charsmax(g_eSettings[SETTING_DEFAULT_MODEL]), szValue)
