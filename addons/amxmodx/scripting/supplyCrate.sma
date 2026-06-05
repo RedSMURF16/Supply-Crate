@@ -1199,6 +1199,7 @@ public menuHandlerRoot(id, menu, item)
             if ( g_iCrate >= MAX_ENT )
             {
                 client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_LIMIT", MAX_ENT)
+                crateSound(id, SOUND_MENU_REMOVE)
             }
             else
             {
@@ -1211,6 +1212,7 @@ public menuHandlerRoot(id, menu, item)
             if ( !g_iCrate )
             {
                 client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_NO_CRATE")
+                crateSound(id, SOUND_MENU_REMOVE)
             }
             else
             {
@@ -1235,6 +1237,7 @@ public menuHandlerRoot(id, menu, item)
             if ( !g_iCrate )
             {
                 client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_NO_CRATE")
+                crateSound(id, SOUND_MENU_REMOVE)
             }
             else
             {
@@ -1247,6 +1250,7 @@ public menuHandlerRoot(id, menu, item)
             if ( !g_iCrate )
             {
                 client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_NO_CRATE")
+                crateSound(id, SOUND_MENU_REMOVE)
             }
             else
             {
@@ -1259,6 +1263,7 @@ public menuHandlerRoot(id, menu, item)
             if ( !g_iCrate )
             {
                 client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_NO_CRATE")
+                crateSound(id, SOUND_MENU_REMOVE)
             }
             else
             {
@@ -2051,7 +2056,6 @@ public saveData(id)
     fclose(iFile)
 
     crateSound(id, SOUND_MENU_NAV)
-    crateMenu(id, MENU_ROOT)
 
     return PLUGIN_HANDLED
 }
