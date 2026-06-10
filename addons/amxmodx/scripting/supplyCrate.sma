@@ -1378,10 +1378,10 @@ public menuHandlerRemove(id, menu, item)
                 crateRemove(0)
             }
 
-            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_REMOVE_ALL")
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_REMOVE_ALL")
             g_ePlayerData[id][PDATA_CRATE_MENU] = 0
 
-            crateSound(0, SOUND_MENU_ALERT)
+            crateSound(id, SOUND_MENU_ALERT)
             crateMenu(id, MENU_ROOT)
         }
         default:
@@ -1486,9 +1486,9 @@ public menuHandlerShow(id, menu, item)
                 ArraySetArray(g_aCrate, i, eCrate)
             }
 
-            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_SHOW_ALL_HIDDEN")
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SHOW_ALL_HIDDEN")
 
-            crateSound(0, SOUND_MENU_ALERT)
+            crateSound(id, SOUND_MENU_ALERT)
             crateMenu(id, MENU_SHOW)
         }
         case SHOW_ALL_SHOW:
@@ -1503,9 +1503,9 @@ public menuHandlerShow(id, menu, item)
                 ArraySetArray(g_aCrate, i, eCrate)
             }
 
-            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_SHOW_ALL_SHOWN")
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SHOW_ALL_SHOWN")
 
-            crateSound(0, SOUND_MENU_ALERT)
+            crateSound(id, SOUND_MENU_ALERT)
             crateMenu(id, MENU_SHOW)
         }
         case SHOW_ALL_DEFAULT:
@@ -1522,9 +1522,9 @@ public menuHandlerShow(id, menu, item)
                 ArraySetArray(g_aCrate, i, eCrate)
             }
 
-            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_SHOW_ALL_DEFAULT")
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SHOW_ALL_DEFAULT")
 
-            crateSound(0, SOUND_MENU_ALERT)
+            crateSound(id, SOUND_MENU_ALERT)
             crateMenu(id, MENU_SHOW)
         }
         default:
@@ -1618,9 +1618,9 @@ public menuHandlerTeam(id, menu, item)
                 ArraySetArray(g_aCrate, i, eCrate)
             }
 
-            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_TEAM_ALL_NONE")
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_TEAM_ALL_NONE")
 
-            crateSound(0, SOUND_MENU_ALERT)
+            crateSound(id, SOUND_MENU_ALERT)
             crateMenu(id, MENU_TEAM)
         }
         case TEAM_ALL_T:
@@ -1632,9 +1632,9 @@ public menuHandlerTeam(id, menu, item)
                 ArraySetArray(g_aCrate, i, eCrate)
             }
 
-            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_TEAM_ALL_T")
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_TEAM_ALL_T")
 
-            crateSound(0, SOUND_MENU_ALERT)
+            crateSound(id, SOUND_MENU_ALERT)
             crateMenu(id, MENU_TEAM)
         }
         case TEAM_ALL_CT:
@@ -1646,9 +1646,9 @@ public menuHandlerTeam(id, menu, item)
                 ArraySetArray(g_aCrate, i, eCrate)
             }
 
-            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_TEAM_ALL_CT")
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_TEAM_ALL_CT")
 
-            crateSound(0, SOUND_MENU_ALERT)
+            crateSound(id, SOUND_MENU_ALERT)
             crateMenu(id, MENU_TEAM)
         }
         case TEAM_ALL_BOTH:
@@ -1660,9 +1660,9 @@ public menuHandlerTeam(id, menu, item)
                 ArraySetArray(g_aCrate, i, eCrate)
             }
 
-            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_TEAM_ALL_BOTH")
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_TEAM_ALL_BOTH")
 
-            crateSound(0, SOUND_MENU_ALERT)
+            crateSound(id, SOUND_MENU_ALERT)
             crateMenu(id, MENU_TEAM)
         }
         default:
@@ -1759,9 +1759,9 @@ public menuHandlerSpawn(id, menu, item)
                 ArraySetArray(g_aCrate, i, eCrate)
             }
 
-            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_SPAWN_ALL_NEVER")
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SPAWN_ALL_NEVER")
 
-            crateSound(0, SOUND_MENU_ALERT)
+            crateSound(id, SOUND_MENU_ALERT)
             crateMenu(id, MENU_SPAWN)
         }
         case SPAWN_ALL_DELAY:
@@ -1778,9 +1778,9 @@ public menuHandlerSpawn(id, menu, item)
                 ArraySetArray(g_aCrate, i, eCrate)
             }
 
-            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_SPAWN_ALL_DELAY")
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SPAWN_ALL_DELAY")
 
-            crateSound(0, SOUND_MENU_ALERT)
+            crateSound(id, SOUND_MENU_ALERT)
             crateMenu(id, MENU_SPAWN)
         }
         case SPAWN_ALL_ROUND_START:
@@ -1792,9 +1792,9 @@ public menuHandlerSpawn(id, menu, item)
                 ArraySetArray(g_aCrate, i, eCrate)
             }
 
-            client_print_color(0, 0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_SPAWN_ALL_ROUND_START")
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SPAWN_ALL_ROUND_START")
 
-            crateSound(0, SOUND_MENU_ALERT)
+            crateSound(id, SOUND_MENU_ALERT)
             crateMenu(id, MENU_SPAWN)
         }
         default:
