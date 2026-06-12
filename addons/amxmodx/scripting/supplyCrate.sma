@@ -118,13 +118,12 @@ enum
 {
     FLAG_BREAK          = (1 << 0),
     FLAG_EXPLODE        = (1 << 1),
-    FLAG_SOUND          = (1 << 2),
 
-    FLAG_SHOW           = (1 << 3),
-    FLAG_DEAD           = (1 << 4),
-    FLAG_GHOST          = (1 << 5),
-    FLAG_VALID          = (1 << 6),
-    FLAG_SELECT         = (1 << 7)
+    FLAG_SHOW           = (1 << 2),
+    FLAG_DEAD           = (1 << 3),
+    FLAG_GHOST          = (1 << 4),
+    FLAG_VALID          = (1 << 5),
+    FLAG_SELECT         = (1 << 6)
 }
 
 enum
@@ -690,7 +689,7 @@ stock ReadFile()
                         else if ( equali(szKey, "SETTING_DEFAULT_FLAGS") )
                         {
                             g_eSettings[SETTING_DEFAULT_FLAGS] = read_flags(szValue)
-                            g_eSettings[SETTING_DEFAULT_FLAGS] &= 7
+                            g_eSettings[SETTING_DEFAULT_FLAGS] &= 3
                         }
                         else if ( equali(szKey, "SETTING_DEFAULT_TEAM") )
                         {
@@ -933,7 +932,7 @@ stock ReadFile()
                         else if ( equali(szKey, "CRATE_FLAGS") )
                         {
                             eCrate[CRATE_FLAGS] = read_flags(szValue)
-                            eCrate[CRATE_FLAGS] &= 7
+                            eCrate[CRATE_FLAGS] &= 3
                         }
                         else if ( equali(szKey, "CRATE_TEAM") )
                         {
@@ -1108,7 +1107,7 @@ public crateInit()
 public crateMenu(id, iType)
 {
     new szData[64], iMenu
-    formatex(szData, charsmax(szData), "%L^n%L", id, "CRATE_MENU_TITLE", PLUGIN_VERSION, id, "CRATE_MENU_TITLE_PAGE")
+    formatex(szData, charsmax(szData), "%L", id, "CRATE_MENU_TITLE", PLUGIN_VERSION)
     iMenu = menu_create(szData, g_szMenuHandler[iType])
 
     switch( iType )
@@ -1122,6 +1121,10 @@ public crateMenu(id, iType)
         case MENU_ROTATE: { menuRotate(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_ROTATE"); }
     }
 
+    if ( menu_pages(iMenu) > 1 )
+        format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_MENU_TITLE_PAGE")
+
+    menu_setprop(iMenu, MPROP_TITLE, szData)
     menu_setprop(iMenu, MPROP_EXIT, MEXIT_ALL)
     menu_setprop(iMenu, MPROP_NUMBER_COLOR, "\r")
 
@@ -2047,7 +2050,7 @@ public saveData(id)
     fclose(iFile)
 
     crateSound(id, SOUND_MENU_NAV)
-
+    crateMenu(id, MENU_ROOT)
     return PLUGIN_HANDLED
 }
 
@@ -2204,8 +2207,11 @@ public fwdAddToFullPack(es, e, iEnt, iHost, iHostFlags, iPlayer, pSet)
     || !get_orig_retval() )
         return FMRES_IGNORED
 
-    new eCrate[CRATE], bool:bHidden
-    crateGet(eCrate, iEnt)
+    new eCrate[CRATE]
+    if ( crateGet(eCrate, iEnt) == -1 )
+        return FMRES_IGNORED
+
+    new bool:bHidden
     bHidden = !(eCrate[CRATE_FLAGS] & FLAG_SHOW)
 
     if ( !g_ePlayerData[iHost][PDATA_CRATE_ACTION] )
@@ -2291,14 +2297,16 @@ public fwdTraceAttack(iEnt, iAttacker, Float:fDamage, Float:fDirection[3], iTr, 
     if ( !isCrate(iEnt) )
         return HAM_IGNORED
 
-    new eCrate[CRATE], Float:fEnd[3]
-    crateGet(eCrate, iEnt)
+    new eCrate[CRATE]
+    if ( crateGet(eCrate, iEnt) == -1 )
+        return HAM_IGNORED
+
+    new Float:fEnd[3]
     get_tr2(iTr, TR_vecEndPos, fEnd)
 
     crateParticles(fEnd)
     crateSparks(fEnd)
-    if ( eCrate[CRATE_FLAGS] & FLAG_SOUND )
-        crateSound(iEnt, SOUND_METAL, CHAN_VOICE, false)
+    crateSound(iEnt, SOUND_METAL, CHAN_VOICE, false)
 
     return HAM_IGNORED
 }
@@ -2480,9 +2488,7 @@ stock crateSupply(id, eCrate[CRATE], iItem, Float:fCurrentTime)
         if ( !g_ePlayerData[id][PDATA_CRATE_USE] )
         {
             g_ePlayerData[id][PDATA_CRATE_USE] = eCrate[CRATE_ID]
-
-            if ( eCrate[CRATE_FLAGS] & FLAG_SOUND )
-                crateSound(eCrate[CRATE_ID], SOUND_SUPPLY, .bPlayer = false)
+            crateSound(eCrate[CRATE_ID], SOUND_SUPPLY, .bPlayer = false)
         }
 
         switch( eCrate[CRATE_CLASS] )
@@ -2501,8 +2507,7 @@ stock crateSupply(id, eCrate[CRATE], iItem, Float:fCurrentTime)
 
         ArraySetArray(g_aCrate, iItem, eCrate)
     }
-    else if ( fCurrentTime >= eCrate[CRATE_NEXT_EMPTY]
-    && eCrate[CRATE_FLAGS] & FLAG_SOUND )
+    else if ( fCurrentTime >= eCrate[CRATE_NEXT_EMPTY] )
     {
         crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
         eCrate[CRATE_NEXT_EMPTY] = fCurrentTime + 1.0
@@ -2538,11 +2543,9 @@ stock supplyAmmo(id, eCrate[CRATE], Float:fCurrentTime)
         if ( !iClip )
             client_cmd(id, "+attack; wait; -attack;")
 
-        if ( eCrate[CRATE_FLAGS] & FLAG_SOUND )
-            crateSound(eCrate[CRATE_ID], SOUND_SUPPLY, .bPlayer = false)
+        crateSound(eCrate[CRATE_ID], SOUND_SUPPLY, .bPlayer = false)
     }
-    else if ( fCurrentTime >= eCrate[CRATE_NEXT_EMPTY]
-    && eCrate[CRATE_FLAGS] & FLAG_SOUND )
+    else if ( fCurrentTime >= eCrate[CRATE_NEXT_EMPTY] )
     {
         eCrate[CRATE_NEXT_EMPTY] = fCurrentTime + 1.0
         crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
@@ -2561,9 +2564,7 @@ stock supplyGrenades(id, eCrate[CRATE], Float:fCurrentTime)
     eCrate[CRATE_CAPACITY] -= 1.0
     eCrate[CRATE_NEXT_USE] = fCurrentTime + eCrate[CRATE_COOLDOWN]
     crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_OPENCLOSE, eCrate[CRATE_FRAMERATE])
-
-    if ( eCrate[CRATE_FLAGS] & FLAG_SOUND )
-        crateSound(eCrate[CRATE_ID], SOUND_SUPPLY, .bPlayer = false)
+    crateSound(eCrate[CRATE_ID], SOUND_SUPPLY, .bPlayer = false)
 }
 
 stock supplyMarket(id, eCrate[CRATE], Float:fCurrentTime)
@@ -2578,12 +2579,9 @@ stock supplyMarket(id, eCrate[CRATE], Float:fCurrentTime)
         eCrate[CRATE_CAPACITY] -= 1.0
         eCrate[CRATE_NEXT_USE] = fCurrentTime + eCrate[CRATE_COOLDOWN]
         crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_OPENCLOSE, eCrate[CRATE_FRAMERATE])
-
-        if ( eCrate[CRATE_FLAGS] & FLAG_SOUND )
-            crateSound(eCrate[CRATE_ID], SOUND_SELL, .bPlayer = false)
+        crateSound(eCrate[CRATE_ID], SOUND_SELL, .bPlayer = false)
     }
-    else if ( fCurrentTime >= eCrate[CRATE_NEXT_EMPTY]
-    && eCrate[CRATE_FLAGS] & FLAG_SOUND )
+    else if ( fCurrentTime >= eCrate[CRATE_NEXT_EMPTY] )
     {
         eCrate[CRATE_NEXT_EMPTY] = fCurrentTime + 1.0
         crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
@@ -2678,18 +2676,18 @@ stock crateSetAnim(eCrate[CRATE], bool:bPlaySound = true)
             eCrate[CRATE_CAPACITY] = 0.0
             eCrate[CRATE_NEXT_REFILL] = get_gametime() + eCrate[CRATE_DELAY_ACTIVE]
 
-            if ( bPlaySound && (eCrate[CRATE_FLAGS] & FLAG_SOUND) )
+            if ( bPlaySound )
                 crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
         }
         else
         {
-            if ( bPlaySound && (eCrate[CRATE_FLAGS] & FLAG_SOUND) )
+            if ( bPlaySound )
                 crateSound(eCrate[CRATE_ID], SOUND_PLACE, .bPlayer = false)
         }
     }
     else
     {
-        if ( bPlaySound && (eCrate[CRATE_FLAGS] & FLAG_SOUND) )
+        if ( bPlaySound )
             crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
     }
 }
