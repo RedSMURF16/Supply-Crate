@@ -56,10 +56,6 @@
     #define MAX_VALUE_LENGTH 64
 #endif
 
-#if !defined MAX_AUTHID_LENGTH
-    #define MAX_AUTHID_LENGTH 64
-#endif
-
 #if !defined MAX_RESOURCE_PATH_LENGTH
     #define MAX_RESOURCE_PATH_LENGTH 128
 #endif
@@ -116,21 +112,32 @@ enum
 
 enum
 {
-    FLAG_BREAK          = (1 << 0),
-    FLAG_EXPLODE        = (1 << 1),
+    FLAG_BREAK              = (1 << 0),
+    FLAG_EXPLODE            = (1 << 1),
+    FLAG_REFILL             = (1 << 2),
+    FLAG_ACTIVE_DELAY       = (1 << 3),
+    FLAG_ACTIVE_PERMANENT   = (1 << 4),
 
-    FLAG_SHOW           = (1 << 2),
-    FLAG_DEAD           = (1 << 3),
-    FLAG_GHOST          = (1 << 4),
-    FLAG_VALID          = (1 << 5),
-    FLAG_SELECT         = (1 << 6)
+    FLAG_SHOW               = (1 << 5),
+    FLAG_DEAD               = (1 << 6),
+    FLAG_GHOST              = (1 << 7),
+    FLAG_VALID              = (1 << 8),
+    FLAG_SELECT             = (1 << 9),
+    FLAG_ACTIVE             = (1 << 10)
+}
+
+enum
+{
+    STATUS_DEFAULT,
+    STATUS_FORCE_ENABLE,
+    STATUS_FORCE_DISABLE
 }
 
 enum
 {
     SHOW_DEFAULT,
-    SHOW_FORCE_HIDE,
-    SHOW_FORCE_SHOW
+    SHOW_FORCE_SHOW,
+    SHOW_FORCE_HIDE
 }
 
 enum
@@ -162,24 +169,26 @@ enum _:MAIN_SETTINGS
     SETTING_DEFAULT_CLASS,
     SETTING_DEFAULT_FLAGS,
     SETTING_DEFAULT_TEAM,
-    SETTING_DEFAULT_SOUND,
     SETTING_DEFAULT_MODE,
+
+    Float:SETTING_DEFAULT_REFILL[2],
+    Float:SETTING_DEFAULT_COOLDOWN,
+    Float:SETTING_DEFAULT_CAPACITY,
 
     SETTING_DEFAULT_SPAWN_MODE,
     Float:SETTING_DEFAULT_SPAWN[2],
     Float:SETTING_DEFAULT_SPAWN_CHANCE,
 
-    Float:SETTING_DEFAULT_REFILL,
-    Float:SETTING_DEFAULT_COOLDOWN,
-    Float:SETTING_DEFAULT_CAPACITY,
-    Float:SETTING_DEFAULT_DELAY_ACTIVE,
+    Float:SETTING_DEFAULT_ACTIVE_DELAY[2],
+    Float:SETTING_DEFAULT_ACTIVE_DURATION[2],
+    Float:SETTING_DEFAULT_ACTIVE_COOLDOWN[2],
 
-    Float:SETTING_DEFAULT_HEALTH,
-    SETTING_DEFAULT_ARMOR,
+    Float:SETTING_DEFAULT_HEALTH[2],
+    SETTING_DEFAULT_ARMOR[2],
     Float:SETTING_DEFAULT_FACTOR,
     Float:SETTING_DEFAULT_FACTOR_MAX,
-    Float:SETTING_DEFAULT_EXPLODE_DAMAGE,
-    Float:SETTING_DEFAULT_EXPLODE_RADIUS,
+    Float:SETTING_DEFAULT_EXPLODE_DAMAGE[2],
+    Float:SETTING_DEFAULT_EXPLODE_RADIUS[2],
     SETTING_DEFAULT_WEAPON_MODE,
 
     Float:SETTING_MINS[3],
@@ -201,12 +210,10 @@ enum _:MAIN_SETTINGS
 
     SETTING_SPRITE_ZEROGXPLODE,
     Array:SETTING_SOUND_METAL,
-    SETTING_SOUND_PLACE[MAX_RESOURCE_PATH_LENGTH],
-    SETTING_SOUND_EMPTY[MAX_RESOURCE_PATH_LENGTH],
-    SETTING_SOUND_REMOVE[MAX_RESOURCE_PATH_LENGTH],
-    SETTING_SOUND_SUPPLY[MAX_RESOURCE_PATH_LENGTH],
-    SETTING_SOUND_SELL[MAX_RESOURCE_PATH_LENGTH],
-    SETTING_SOUND_REFILL[MAX_RESOURCE_PATH_LENGTH],
+    SETTING_SOUND_BUTTON4[MAX_RESOURCE_PATH_LENGTH],
+    SETTING_SOUND_LOCKED[MAX_RESOURCE_PATH_LENGTH],
+    SETTING_SOUND_CLIP[MAX_RESOURCE_PATH_LENGTH],
+    SETTING_SOUND_CHCHING[MAX_RESOURCE_PATH_LENGTH],
     SETTING_SOUND_MENU_NAV[MAX_RESOURCE_PATH_LENGTH],
     SETTING_SOUND_MENU_REMOVE[MAX_RESOURCE_PATH_LENGTH],
     SETTING_SOUND_MENU_ALERT[MAX_RESOURCE_PATH_LENGTH],
@@ -221,6 +228,7 @@ enum _:CRATE
     CRATE_ITEM,
     CRATE_CLASS,
     CRATE_FLAGS,
+    CRATE_STATUS,
     CRATE_SHOW,
     CRATE_TEAM,
     CRATE_MODE,
@@ -232,28 +240,33 @@ enum _:CRATE
     Float:CRATE_MINS[3],
     Float:CRATE_MAXS[3],
 
-    Float:CRATE_REFILL,
+    Float:CRATE_REFILL[2],
     Float:CRATE_COOLDOWN,
     Float:CRATE_CAPACITY,
     Float:CRATE_FRAMERATE,
     Float:CRATE_CAPACITY_MAX,
-    Float:CRATE_DELAY_ACTIVE,
 
     CRATE_SPAWN_MODE,
     Float:CRATE_SPAWN[2],
     Float:CRATE_SPAWN_CHANCE,
     Float:CRATE_NEXT_SPAWN,
 
-    Float:CRATE_HEALTH,
-    CRATE_ARMOR,
+    Float:CRATE_ACTIVE_DELAY[2],
+    Float:CRATE_ACTIVE_DURATION[2],
+    Float:CRATE_ACTIVE_COOLDOWN[2],
+
+    Float:CRATE_HEALTH[2],
+    CRATE_ARMOR[2],
     Float:CRATE_FACTOR,
     Float:CRATE_FACTOR_MAX,
-    Float:CRATE_EXPLODE_DAMAGE,
-    Float:CRATE_EXPLODE_RADIUS,
+    Float:CRATE_EXPLODE_DAMAGE[2],
+    Float:CRATE_EXPLODE_RADIUS[2],
 
     Float:CRATE_NEXT_USE,
     Float:CRATE_NEXT_EMPTY,
     Float:CRATE_NEXT_REFILL,
+    Float:CRATE_NEXT_ENABLE,
+    Float:CRATE_NEXT_DISABLE,
 
     CRATE_WEAPON_MODE,
     bool:CRATE_WEAPON_LIST[31]
@@ -282,12 +295,10 @@ enum
     SOUND_MENU_REMOVE,
     SOUND_MENU_ALERT,
 
-    SOUND_PLACE,
-    SOUND_EMPTY,
-    SOUND_REMOVE,
-    SOUND_SUPPLY,
-    SOUND_SELL,
-    SOUND_REFILL,
+    SOUND_BUTTON4,
+    SOUND_LOCKED,
+    SOUND_CLIP,
+    SOUND_CHCHING,
     SOUND_METAL
 }
 
@@ -295,6 +306,7 @@ enum
 {
     MENU_ROOT,
     MENU_CREATE,
+    MENU_STATUS,
     MENU_REMOVE,
     MENU_SHOW,
     MENU_TEAM,
@@ -305,6 +317,7 @@ enum
 enum
 {
     ROOT_CREATE,
+    ROOT_STATUS,
     ROOT_REMOVE,
     ROOT_SAVE,
 
@@ -314,6 +327,17 @@ enum
     ROOT_SHOW = 7,
     ROOT_TEAM,
     ROOT_SPAWN
+}
+
+enum
+{
+    STATUS_NEXT,
+    STATUS_BACK,
+
+    STATUS_CURRENT = 3,
+    STATUS_ALL_ENABLE,
+    STATUS_ALL_DISABLE,
+    STATUS_ALL_DEFAULT
 }
 
 enum
@@ -396,6 +420,7 @@ new g_szMenuHandler[][] =
 {
     "menuHandlerRoot",
     "menuHandlerCreate",
+    "menuHandlerStatus",
     "menuHandlerRemove",
     "menuHandlerShow",
     "menuHandlerTeam",
@@ -420,9 +445,12 @@ new Array:g_aCrate,
     g_iAmmoPickup, g_iWeapPickup,
     g_iMaxPlayers
 
-new g_szShow[][] = {"CRATE_DEFAULT", "CRATE_HIDDEN", "CRATE_SHOWN"}
-new g_szShowChat[][] = {"CRATE_CHAT_DEFAULT", "CRATE_CHAT_HIDDEN", "CRATE_CHAT_SHOWN"}
-new g_szShowColor[][] = {"\d", "\r", "\y"}
+new g_szStatus[][] = {"CRATE_DEFAULT", "CRATE_ENABLED", "CRATE_DISABLED"}
+new g_szStatusChat[][] = {"CRATE_CHAT_DEFAULT", "CRATE_CHAT_ENABLED", "CRATE_CHAT_DISABLED"}
+new g_szStatusColor[][] = {"\d", "\y", "\r"}
+new g_szShow[][] = {"CRATE_DEFAULT", "CRATE_SHOWN", "CRATE_HIDDEN"}
+new g_szShowChat[][] = {"CRATE_CHAT_DEFAULT", "CRATE_CHAT_SHOWN", "CRATE_CHAT_HIDDEN"}
+new g_szShowColor[][] = {"\d", "\y", "\r"}
 new g_szTeam[][] = {"CRATE_NONE", "CRATE_T", "CRATE_CT", "CRATE_BOTH"}
 new g_szTeamChat[][] = {"CRATE_CHAT_NONE", "CRATE_CHAT_T", "CRATE_CHAT_CT", "CRATE_CHAT_BOTH"}
 new g_szSpawn[][] = {"CRATE_NEVER", "CRATE_DELAY", "CRATE_ROUND_START"}
@@ -461,7 +489,7 @@ public plugin_init()
 
 public plugin_precache()
 {
-    g_aCrate       = ArrayCreate(CRATE)
+    g_aCrate = ArrayCreate(CRATE)
     g_aCrateConfig = ArrayCreate(CRATE)
     g_eSettings[SETTING_SOUND_METAL] = ArrayCreate(MAX_RESOURCE_PATH_LENGTH)
 
@@ -533,20 +561,23 @@ public eventRoundStart()
     for ( new i = 0; i < g_iCrate; i ++ )
     {
         ArrayGetArray(g_aCrate, i, eCrate)
+        crateReset(eCrate)
 
-        if ( eCrate[CRATE_FLAGS] & FLAG_SHOW
-        || eCrate[CRATE_SHOW] != SHOW_DEFAULT
+        if ( eCrate[CRATE_SHOW] != SHOW_DEFAULT
         || eCrate[CRATE_SPAWN_MODE] != SPAWN_ROUND_START )
+        {
+            ArraySetArray(g_aCrate, i, eCrate)
             continue
+        }
 
         if ( eCrate[CRATE_SPAWN_CHANCE] >= random_float(0.0, 1.0) )
         {
-            eCrate[CRATE_FLAGS] |= FLAG_SHOW
+            eCrate[CRATE_FLAGS] |= (FLAG_SHOW | FLAG_ACTIVE)
             crateState(eCrate, true, true)
         }
         else
         {
-            eCrate[CRATE_FLAGS] &= ~FLAG_SHOW
+            eCrate[CRATE_FLAGS] &= ~(FLAG_SHOW | FLAG_ACTIVE)
             crateState(eCrate, false, false)
         }
 
@@ -617,30 +648,41 @@ stock ReadFile()
 
                         copy(eCrate[CRATE_NAME], charsmax(eCrate[CRATE_NAME]), szData)
                         copy(eCrate[CRATE_MODEL], charsmax(eCrate[CRATE_MODEL]), g_eSettings[SETTING_DEFAULT_MODEL])
-                        eCrate[CRATE_CLASS]             = CLASS_AMMO
-                        eCrate[CRATE_FLAGS]             = g_eSettings[SETTING_DEFAULT_FLAGS]
-                        eCrate[CRATE_TEAM]              = TEAM_BOTH
-                        eCrate[CRATE_MODE]              = CRATE_FLAG_VEST
+                        eCrate[CRATE_CLASS]                 = g_eSettings[SETTING_DEFAULT_CLASS]
+                        eCrate[CRATE_FLAGS]                 = g_eSettings[SETTING_DEFAULT_FLAGS]
+                        eCrate[CRATE_TEAM]                  = g_eSettings[SETTING_DEFAULT_TEAM]
+                        eCrate[CRATE_MODE]                  = g_eSettings[SETTING_DEFAULT_MODE]
 
-                        eCrate[CRATE_SPAWN_MODE]        = g_eSettings[SETTING_DEFAULT_SPAWN_MODE]
-                        eCrate[CRATE_SPAWN][0]          = g_eSettings[SETTING_DEFAULT_SPAWN][0]
-                        eCrate[CRATE_SPAWN][1]          = g_eSettings[SETTING_DEFAULT_SPAWN][1]
-                        eCrate[CRATE_SPAWN_CHANCE]      = g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE]
+                        eCrate[CRATE_REFILL][0]             = g_eSettings[SETTING_DEFAULT_REFILL][0]
+                        eCrate[CRATE_REFILL][1]             = g_eSettings[SETTING_DEFAULT_REFILL][1]
+                        eCrate[CRATE_COOLDOWN]              = g_eSettings[SETTING_DEFAULT_COOLDOWN]
+                        eCrate[CRATE_CAPACITY]              = g_eSettings[SETTING_DEFAULT_CAPACITY]
+                        eCrate[CRATE_FRAMERATE]             = (2.15 + (eCrate[CRATE_COOLDOWN] - 0.5) / (40.0 - 0.5) * (3.25 - 2.15)) / eCrate[CRATE_COOLDOWN]
 
-                        eCrate[CRATE_REFILL]            = g_eSettings[SETTING_DEFAULT_REFILL]
-                        eCrate[CRATE_CAPACITY]          = g_eSettings[SETTING_DEFAULT_CAPACITY]
-                        eCrate[CRATE_COOLDOWN]          = g_eSettings[SETTING_DEFAULT_COOLDOWN]
-                        eCrate[CRATE_DELAY_ACTIVE]      = g_eSettings[SETTING_DEFAULT_DELAY_ACTIVE]
-                        eCrate[CRATE_FRAMERATE]         = (2.15 + (eCrate[CRATE_COOLDOWN] - 0.5) / (40.0 - 0.5) * (3.25 - 2.15)) / eCrate[CRATE_COOLDOWN]
+                        eCrate[CRATE_SPAWN_MODE]            = g_eSettings[SETTING_DEFAULT_SPAWN_MODE]
+                        eCrate[CRATE_SPAWN][0]              = g_eSettings[SETTING_DEFAULT_SPAWN][0]
+                        eCrate[CRATE_SPAWN][1]              = g_eSettings[SETTING_DEFAULT_SPAWN][1]
+                        eCrate[CRATE_SPAWN_CHANCE]          = g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE]
 
-                        eCrate[CRATE_HEALTH]            = g_eSettings[SETTING_DEFAULT_HEALTH]
-                        eCrate[CRATE_ARMOR]             = g_eSettings[SETTING_DEFAULT_ARMOR]
-                        eCrate[CRATE_FACTOR]            = g_eSettings[SETTING_DEFAULT_FACTOR]
-                        eCrate[CRATE_FACTOR_MAX]        = g_eSettings[SETTING_DEFAULT_FACTOR_MAX]
-                        eCrate[CRATE_EXPLODE_DAMAGE]    = g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE]
-                        eCrate[CRATE_EXPLODE_RADIUS]    = g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS]
+                        eCrate[CRATE_ACTIVE_DELAY][0]       = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][0]
+                        eCrate[CRATE_ACTIVE_DELAY][1]       = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][1]
+                        eCrate[CRATE_ACTIVE_DURATION][0]    = g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][0]
+                        eCrate[CRATE_ACTIVE_DURATION][1]    = g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][1]
+                        eCrate[CRATE_ACTIVE_COOLDOWN][0]    = g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][0]
+                        eCrate[CRATE_ACTIVE_COOLDOWN][1]    = g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][1]
 
-                        eCrate[CRATE_WEAPON_MODE]       = g_eSettings[SETTING_DEFAULT_WEAPON_MODE]
+                        eCrate[CRATE_HEALTH][0]             = g_eSettings[SETTING_DEFAULT_HEALTH][0]
+                        eCrate[CRATE_HEALTH][1]             = g_eSettings[SETTING_DEFAULT_HEALTH][1]
+                        eCrate[CRATE_ARMOR][0]              = g_eSettings[SETTING_DEFAULT_ARMOR][0]
+                        eCrate[CRATE_ARMOR][1]              = g_eSettings[SETTING_DEFAULT_ARMOR][1]
+                        eCrate[CRATE_FACTOR]                = g_eSettings[SETTING_DEFAULT_FACTOR]
+                        eCrate[CRATE_FACTOR_MAX]            = g_eSettings[SETTING_DEFAULT_FACTOR_MAX]
+                        eCrate[CRATE_EXPLODE_DAMAGE][0]     = g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE][0]
+                        eCrate[CRATE_EXPLODE_DAMAGE][1]     = g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE][1]
+                        eCrate[CRATE_EXPLODE_RADIUS][0]     = g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS][0]
+                        eCrate[CRATE_EXPLODE_RADIUS][1]     = g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS][1]
+
+                        eCrate[CRATE_WEAPON_MODE]           = g_eSettings[SETTING_DEFAULT_WEAPON_MODE]
                         for ( new i = 1; i <= CSW_P90; i ++ )
                             eCrate[CRATE_WEAPON_LIST][i] = false
 
@@ -689,19 +731,29 @@ stock ReadFile()
                         else if ( equali(szKey, "SETTING_DEFAULT_FLAGS") )
                         {
                             g_eSettings[SETTING_DEFAULT_FLAGS] = read_flags(szValue)
-                            g_eSettings[SETTING_DEFAULT_FLAGS] &= 3
+                            g_eSettings[SETTING_DEFAULT_FLAGS] &= 31
                         }
                         else if ( equali(szKey, "SETTING_DEFAULT_TEAM") )
                         {
                             g_eSettings[SETTING_DEFAULT_TEAM] = str_to_num(szValue)
                         }
-                        else if ( equali(szKey, "SETTING_DEFAULT_SOUND") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_SOUND] = str_to_num(szValue)
-                        }
                         else if ( equali(szKey, "SETTING_DEFAULT_MODE") )
                         {
                             g_eSettings[SETTING_DEFAULT_MODE] = str_to_num(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_REFILL") )
+                        {
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_DEFAULT_REFILL][0] = str_to_float(szKey)
+                            g_eSettings[SETTING_DEFAULT_REFILL][1] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_COOLDOWN") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_COOLDOWN] = str_to_float(szValue)
+                        }
+                        else if ( equali(szKey, "SETTING_DEFAULT_CAPACITY") )
+                        {
+                            g_eSettings[SETTING_DEFAULT_CAPACITY] = str_to_float(szValue)
                         }
                         else if ( equali(szKey, "SETTING_DEFAULT_SPAWN_MODE") )
                         {
@@ -717,29 +769,35 @@ stock ReadFile()
                         {
                             g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE] = str_to_float(szValue)
                         }
-                        else if ( equali(szKey, "SETTING_DEFAULT_REFILL") )
+                        else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_DELAY") )
                         {
-                            g_eSettings[SETTING_DEFAULT_REFILL] = str_to_float(szValue)
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][0] = str_to_float(szKey)
+                            g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][1] = str_to_float(szValue)
                         }
-                        else if ( equali(szKey, "SETTING_DEFAULT_COOLDOWN") )
+                        else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_DURATION") )
                         {
-                            g_eSettings[SETTING_DEFAULT_COOLDOWN] = str_to_float(szValue)
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][0] = str_to_float(szKey)
+                            g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][1] = str_to_float(szValue)
                         }
-                        else if ( equali(szKey, "SETTING_DEFAULT_CAPACITY") )
+                        else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_COOLDOWN") )
                         {
-                            g_eSettings[SETTING_DEFAULT_CAPACITY] = str_to_float(szValue)
-                        }
-                        else if ( equali(szKey, "SETTING_DEFAULT_DELAY_ACTIVE") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_DELAY_ACTIVE] = str_to_float(szValue)
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][0] = str_to_float(szKey)
+                            g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][1] = str_to_float(szValue)
                         }
                         else if ( equali(szKey, "SETTING_DEFAULT_HEALTH") )
                         {
-                            g_eSettings[SETTING_DEFAULT_HEALTH] = str_to_float(szValue)
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_DEFAULT_HEALTH][0] = str_to_float(szKey)
+                            g_eSettings[SETTING_DEFAULT_HEALTH][1] = str_to_float(szValue)
                         }
                         else if ( equali(szKey, "SETTING_DEFAULT_ARMOR") )
                         {
-                            g_eSettings[SETTING_DEFAULT_ARMOR] = str_to_num(szValue)
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_DEFAULT_ARMOR][0] = str_to_num(szKey)
+                            g_eSettings[SETTING_DEFAULT_ARMOR][1] = str_to_num(szValue)
                         }
                         else if ( equali(szKey, "SETTING_DEFAULT_FACTOR") )
                         {
@@ -751,11 +809,15 @@ stock ReadFile()
                         }
                         else if ( equali(szKey, "SETTING_DEFAULT_EXPLODE_DAMAGE") )
                         {
-                            g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE] = str_to_float(szValue)
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE][0] = str_to_float(szKey)
+                            g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE][1] = str_to_float(szValue)
                         }
                         else if ( equali(szKey, "SETTING_DEFAULT_EXPLODE_RADIUS") )
                         {
-                            g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS] = str_to_float(szValue)
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS][0] = str_to_float(szKey)
+                            g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS][1] = str_to_float(szValue)
                         }
                         else if ( equali(szKey, "SETTING_DEFAULT_WEAPON_MODE") )
                         {
@@ -843,50 +905,40 @@ stock ReadFile()
                         {
                             g_eSettings[SETTING_GHOST_FREQ] = str_to_float(szValue)
                         }
-                        else if ( equali(szKey, "SETTING_SOUND_PLACE") )
+                        else if ( equali(szKey, "SETTING_SOUND_BUTTON4") )
                         {
-                            copy(g_eSettings[SETTING_SOUND_PLACE], charsmax(g_eSettings[SETTING_SOUND_PLACE]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_PLACE])
+                            copy(g_eSettings[SETTING_SOUND_BUTTON4], charsmax(g_eSettings[SETTING_SOUND_BUTTON4]), szValue)
+                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_BUTTON4])
                         }
-                        else if ( equali(szKey, "SETTING_SOUND_EMPTY") )
+                        else if ( equali(szKey, "SETTING_SOUND_LOCKED") )
                         {
-                            copy(g_eSettings[SETTING_SOUND_EMPTY], charsmax(g_eSettings[SETTING_SOUND_EMPTY]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_EMPTY])
+                            copy(g_eSettings[SETTING_SOUND_LOCKED], charsmax(g_eSettings[SETTING_SOUND_LOCKED]), szValue)
+                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_LOCKED])
                         }
-                        else if ( equali(szKey, "SETTING_SOUND_REMOVE") )
+                        else if ( equali(szKey, "SETTING_SOUND_CLIP") )
                         {
-                            copy(g_eSettings[SETTING_SOUND_REMOVE], charsmax(g_eSettings[SETTING_SOUND_REMOVE]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_REMOVE])
+                            copy(g_eSettings[SETTING_SOUND_CLIP], charsmax(g_eSettings[SETTING_SOUND_CLIP]), szValue)
+                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_CLIP])
                         }
-                        else if ( equali(szKey, "SETTING_SOUND_SUPPLY") )
+                        else if ( equali(szKey, "SETTING_SOUND_CHCHING") )
                         {
-                            copy(g_eSettings[SETTING_SOUND_SUPPLY], charsmax(g_eSettings[SETTING_SOUND_SUPPLY]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_SUPPLY])
-                        }
-                        else if ( equali(szKey, "SETTING_SOUND_SELL") )
-                        {
-                            copy(g_eSettings[SETTING_SOUND_SELL], charsmax(g_eSettings[SETTING_SOUND_SELL]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_SELL])
-                        }
-                        else if ( equali(szKey, "SETTING_SOUND_REFILL") )
-                        {
-                            copy(g_eSettings[SETTING_SOUND_REFILL], charsmax(g_eSettings[SETTING_SOUND_REFILL]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_REFILL])
+                            copy(g_eSettings[SETTING_SOUND_CHCHING], charsmax(g_eSettings[SETTING_SOUND_CHCHING]), szValue)
+                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_CHCHING])
                         }
                         else if ( equali(szKey, "SETTING_SOUND_MENU_NAV") )
                         {
                             copy(g_eSettings[SETTING_SOUND_MENU_NAV], charsmax(g_eSettings[SETTING_SOUND_MENU_NAV]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(szValue)
+                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_MENU_NAV])
                         }
                         else if ( equali(szKey, "SETTING_SOUND_MENU_REMOVE") )
                         {
                             copy(g_eSettings[SETTING_SOUND_MENU_REMOVE], charsmax(g_eSettings[SETTING_SOUND_MENU_REMOVE]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(szValue)
+                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_MENU_REMOVE])
                         }
                         else if ( equali(szKey, "SETTING_SOUND_MENU_ALERT") )
                         {
                             copy(g_eSettings[SETTING_SOUND_MENU_ALERT], charsmax(g_eSettings[SETTING_SOUND_MENU_ALERT]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(szValue)
+                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_MENU_ALERT])
                         }
                         else if ( equali(szKey, "SETTING_SOUND_METAL") )
                         {
@@ -932,7 +984,7 @@ stock ReadFile()
                         else if ( equali(szKey, "CRATE_FLAGS") )
                         {
                             eCrate[CRATE_FLAGS] = read_flags(szValue)
-                            eCrate[CRATE_FLAGS] &= 3
+                            eCrate[CRATE_FLAGS] &= 31
                         }
                         else if ( equali(szKey, "CRATE_TEAM") )
                         {
@@ -946,10 +998,12 @@ stock ReadFile()
                         }
                         else if ( equali(szKey, "CRATE_REFILL") )
                         {
-                            eCrate[CRATE_REFILL] = str_to_float(szValue)
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            eCrate[CRATE_REFILL][0] = str_to_float(szKey)
+                            eCrate[CRATE_REFILL][1] = str_to_float(szValue)
 
-                            if ( eCrate[CRATE_REFILL] < 0.0 )
-                                eCrate[CRATE_REFILL] = g_eSettings[SETTING_DEFAULT_REFILL]
+                            if ( eCrate[CRATE_REFILL][0] < 0.0 ) eCrate[CRATE_REFILL][0] = g_eSettings[SETTING_DEFAULT_REFILL][0]
+                            if ( eCrate[CRATE_REFILL][1] < 0.0 ) eCrate[CRATE_REFILL][1] = g_eSettings[SETTING_DEFAULT_REFILL][1]
                         }
                         else if ( equali(szKey, "CRATE_COOLDOWN") )
                         {
@@ -966,13 +1020,6 @@ stock ReadFile()
                                 eCrate[CRATE_CAPACITY] = g_eSettings[SETTING_DEFAULT_CAPACITY]
 
                             eCrate[CRATE_CAPACITY_MAX] = eCrate[CRATE_CAPACITY]
-                        }
-                        else if ( equali(szKey, "CRATE_DELAY_ACTIVE") )
-                        {
-                            eCrate[CRATE_DELAY_ACTIVE] = str_to_float(szValue)
-
-                            if ( eCrate[CRATE_DELAY_ACTIVE] < 0.0 )
-                                eCrate[CRATE_DELAY_ACTIVE] = g_eSettings[SETTING_DEFAULT_DELAY_ACTIVE]
                         }
                         else if ( equali(szKey, "CRATE_SPAWN_MODE") )
                         {
@@ -993,19 +1040,50 @@ stock ReadFile()
                             eCrate[CRATE_SPAWN_CHANCE] = str_to_float(szValue)
                             eCrate[CRATE_SPAWN_CHANCE] = floatclamp(eCrate[CRATE_SPAWN_CHANCE], 0.0, 1.0)
                         }
+                        else if ( equali(szKey, "CRATE_ACTIVE_DELAY") )
+                        {
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            eCrate[CRATE_ACTIVE_DELAY][0] = str_to_float(szKey)
+                            eCrate[CRATE_ACTIVE_DELAY][1] = str_to_float(szValue)
+
+                            if ( eCrate[CRATE_ACTIVE_DELAY][0] < 0.0 ) eCrate[CRATE_ACTIVE_DELAY][0] = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][0]
+                            if ( eCrate[CRATE_ACTIVE_DELAY][1] < 0.0 ) eCrate[CRATE_ACTIVE_DELAY][1] = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][1]
+                        }
+                        else if ( equali(szKey, "CRATE_ACTIVE_DURATION") )
+                        {
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            eCrate[CRATE_ACTIVE_DURATION][0] = str_to_float(szKey)
+                            eCrate[CRATE_ACTIVE_DURATION][1] = str_to_float(szValue)
+
+                            if ( eCrate[CRATE_ACTIVE_DURATION][0] < 0.0 ) eCrate[CRATE_ACTIVE_DURATION][0] = g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][0]
+                            if ( eCrate[CRATE_ACTIVE_DURATION][1] < 0.0 ) eCrate[CRATE_ACTIVE_DURATION][1] = g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][1]
+                        }
+                        else if ( equali(szKey, "CRATE_ACTIVE_COOLDOWN") )
+                        {
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            eCrate[CRATE_ACTIVE_COOLDOWN][0] = str_to_float(szKey)
+                            eCrate[CRATE_ACTIVE_COOLDOWN][1] = str_to_float(szValue)
+
+                            if ( eCrate[CRATE_ACTIVE_COOLDOWN][0] < 0.0 ) eCrate[CRATE_ACTIVE_COOLDOWN][0] = g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][0]
+                            if ( eCrate[CRATE_ACTIVE_COOLDOWN][1] < 0.0 ) eCrate[CRATE_ACTIVE_COOLDOWN][1] = g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][1]
+                        }
                         else if ( equali(szKey, "CRATE_HEALTH") )
                         {
-                            eCrate[CRATE_HEALTH] = str_to_float(szValue)
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            eCrate[CRATE_HEALTH][0] = str_to_float(szKey)
+                            eCrate[CRATE_HEALTH][1] = str_to_float(szValue)
 
-                            if ( eCrate[CRATE_HEALTH] < 0.0 )
-                                eCrate[CRATE_HEALTH] = g_eSettings[SETTING_DEFAULT_HEALTH]
+                            if ( eCrate[CRATE_HEALTH][0] < 0.0 ) eCrate[CRATE_HEALTH][0] = g_eSettings[SETTING_DEFAULT_HEALTH][0]
+                            if ( eCrate[CRATE_HEALTH][1] < 0.0 ) eCrate[CRATE_HEALTH][1] = g_eSettings[SETTING_DEFAULT_HEALTH][1]
                         }
                         else if ( equali(szKey, "CRATE_ARMOR") )
                         {
-                            eCrate[CRATE_ARMOR] = str_to_num(szValue)
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            eCrate[CRATE_ARMOR][0] = str_to_num(szKey)
+                            eCrate[CRATE_ARMOR][1] = str_to_num(szValue)
 
-                            if ( eCrate[CRATE_ARMOR] < 0 )
-                                eCrate[CRATE_ARMOR] = g_eSettings[SETTING_DEFAULT_ARMOR]
+                            if ( eCrate[CRATE_ARMOR][0] < 0 ) eCrate[CRATE_ARMOR][0] = g_eSettings[SETTING_DEFAULT_ARMOR][0]
+                            if ( eCrate[CRATE_ARMOR][1] < 0 ) eCrate[CRATE_ARMOR][1] = g_eSettings[SETTING_DEFAULT_ARMOR][1]
                         }
                         else if ( equali(szKey, "CRATE_FACTOR") )
                         {
@@ -1023,14 +1101,18 @@ stock ReadFile()
                         }
                         else if ( equali(szKey, "CRATE_EXPLODE_DAMAGE") )
                         {
-                            eCrate[CRATE_EXPLODE_DAMAGE] = str_to_float(szValue)
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            eCrate[CRATE_EXPLODE_DAMAGE][0] = str_to_float(szKey)
+                            eCrate[CRATE_EXPLODE_DAMAGE][1] = str_to_float(szValue)
 
-                            if ( eCrate[CRATE_EXPLODE_DAMAGE] < 0.0 )
-                                eCrate[CRATE_EXPLODE_DAMAGE] = g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE]
+                            if ( eCrate[CRATE_EXPLODE_DAMAGE][0] < 0.0 ) eCrate[CRATE_EXPLODE_DAMAGE][0] = g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE][0]
+                            if ( eCrate[CRATE_EXPLODE_DAMAGE][1] < 0.0 ) eCrate[CRATE_EXPLODE_DAMAGE][1] = g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE][1]
                         }
                         else if ( equali(szKey, "CRATE_EXPLODE_RADIUS") )
                         {
-                            eCrate[CRATE_EXPLODE_RADIUS] = str_to_float(szValue)
+                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
+                            eCrate[CRATE_EXPLODE_RADIUS][0] = str_to_float(szKey)
+                            eCrate[CRATE_EXPLODE_RADIUS][1] = str_to_float(szValue)
 
                             if ( eCrate[CRATE_EXPLODE_RADIUS] < 0.0 )
                                 eCrate[CRATE_EXPLODE_RADIUS] = g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS]
@@ -1114,6 +1196,7 @@ public crateMenu(id, iType)
     {
         case MENU_ROOT:   { menuRoot(id, iMenu); }
         case MENU_CREATE: { menuCreate(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_CREATE"); }
+        case MENU_STATUS: { menuStatus(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_STATUS"); }
         case MENU_REMOVE: { menuRemove(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_REMOVE"); }
         case MENU_SHOW:   { menuShow(id, iMenu);    format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_SHOW"); }
         case MENU_TEAM:   { menuTeam(id, iMenu);    format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_TEAM"); }
@@ -1151,6 +1234,9 @@ public menuRoot(id, iMenu)
 
     formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_CREATE")
     menu_additem(iMenu, szItem )
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_STATUS")
+    menu_additem(iMenu, szItem)
 
     formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_REMOVE")
     menu_additem(iMenu, szItem)
@@ -1199,6 +1285,19 @@ public menuHandlerRoot(id, menu, item)
             {
                 crateSound(id, SOUND_MENU_NAV)
                 crateMenu(id, MENU_CREATE)
+            }
+        }
+        case ROOT_STATUS:
+        {
+            if ( !g_iCrate )
+            {
+                client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_NO_CRATE")
+                crateSound(id, SOUND_MENU_REMOVE)
+            }
+            else
+            {
+                crateSound(id, SOUND_MENU_NAV)
+                crateMenu(id, MENU_STATUS)
             }
         }
         case ROOT_REMOVE:
@@ -1297,6 +1396,137 @@ public menuHandlerCreate(id, menu, item)
     crateCreate(id, item)
     crateSound(id, SOUND_MENU_NAV)
     crateMenu(id, MENU_ROTATE)
+
+    menu_destroy(menu)
+    return PLUGIN_HANDLED
+}
+
+public menuStatus(id, iMenu)
+{
+    new szItem[64], eCrate[CRATE]
+
+    menuNav(id, iMenu)
+    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_STATUS_CURRENT",
+    g_szStatusColor[eCrate[CRATE_STATUS]], eCrate[CRATE_NAME], id, g_szStatus[eCrate[CRATE_STATUS]])
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_STATUS_ALL_ENABLE")
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_STATUS_ALL_DISABLE")
+    menu_additem(iMenu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_STATUS_ALL_DEFAULT")
+    menu_additem(iMenu, szItem)
+
+    g_ePlayerData[id][PDATA_CRATE_ACTION] = true
+    eCrate[CRATE_FLAGS] |= FLAG_SELECT
+    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+}
+
+public menuHandlerStatus(id, menu, item)
+{
+    new eCrate[CRATE]
+    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+    eCrate[CRATE_FLAGS] &= ~FLAG_SELECT
+    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+
+    switch( item )
+    {
+        case STATUS_NEXT:
+        {
+            if ( g_ePlayerData[id][PDATA_CRATE_MENU] >= g_iCrate - 1 )
+                g_ePlayerData[id][PDATA_CRATE_MENU] = 0
+            else
+                g_ePlayerData[id][PDATA_CRATE_MENU] ++
+
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_STATUS)
+        }
+        case STATUS_BACK:
+        {
+            if ( g_ePlayerData[id][PDATA_CRATE_MENU] <= 0 )
+                g_ePlayerData[id][PDATA_CRATE_MENU] = g_iCrate - 1
+            else
+                g_ePlayerData[id][PDATA_CRATE_MENU] --
+
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_STATUS)
+        }
+        case STATUS_CURRENT:
+        {
+            if ( ++ eCrate[CRATE_STATUS] > STATUS_FORCE_DISABLE )
+                eCrate[CRATE_STATUS] = STATUS_DEFAULT
+
+            if ( eCrate[CRATE_STATUS] == STATUS_FORCE_ENABLE
+            || eCrate[CRATE_STATUS] == STATUS_DEFAULT )
+                eCrate[CRATE_FLAGS] |= FLAG_ACTIVE
+            else
+            {
+                eCrate[CRATE_FLAGS] &= ~FLAG_ACTIVE
+                eCrate[CRATE_NEXT_USE] = 0.0
+                crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_IDLE, 1.0)
+            }
+
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_STATUS_CURRENT",
+            eCrate[CRATE_NAME], id, g_szStatusChat[eCrate[CRATE_STATUS]])
+            ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_STATUS)
+        }
+        case STATUS_ALL_ENABLE:
+        {
+            for ( new i = 0; i < g_iCrate; i ++ )
+            {
+                ArrayGetArray(g_aCrate, i, eCrate)
+                eCrate[CRATE_FLAGS] |= FLAG_ACTIVE
+                eCrate[CRATE_STATUS] = STATUS_FORCE_ENABLE
+                ArraySetArray(g_aCrate, i, eCrate)
+            }
+
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_STATUS_ALL_ENABLED")
+            crateSound(id, SOUND_MENU_ALERT)
+            crateMenu(id, MENU_STATUS)
+        }
+        case STATUS_ALL_DISABLE:
+        {
+            for ( new i = 0; i < g_iCrate; i ++ )
+            {
+                ArrayGetArray(g_aCrate, i, eCrate)
+                eCrate[CRATE_FLAGS] &= ~FLAG_ACTIVE
+                eCrate[CRATE_STATUS] = STATUS_FORCE_DISABLE
+                eCrate[CRATE_NEXT_USE] = 0.0
+                crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_IDLE, 1.0)
+                ArraySetArray(g_aCrate, i, eCrate)
+            }
+
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_STATUS_ALL_DISABLED")
+            crateSound(id, SOUND_MENU_ALERT)
+            crateMenu(id, MENU_STATUS)
+        }
+        case STATUS_ALL_DEFAULT:
+        {
+            for ( new i = 0; i < g_iCrate; i ++ )
+            {
+                ArrayGetArray(g_aCrate, i, eCrate)
+                eCrate[CRATE_FLAGS] |= FLAG_ACTIVE
+                eCrate[CRATE_STATUS] = STATUS_DEFAULT
+                ArraySetArray(g_aCrate, i, eCrate)
+            }
+
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_STATUS_ALL_DEFAULT")
+            crateSound(id, SOUND_MENU_ALERT)
+            crateMenu(id, MENU_STATUS)
+        }
+        default:
+        {
+            g_ePlayerData[id][PDATA_CRATE_ACTION] = false
+            g_ePlayerData[id][PDATA_CRATE_MENU] = 0
+        }
+    }
 
     menu_destroy(menu)
     return PLUGIN_HANDLED
@@ -1862,7 +2092,7 @@ public menuHandlerRotate(id, menu, item)
                 g_ePlayerData[id][PDATA_CRATE_ACTION] = false
 
                 eCrate[CRATE_NEXT_USE] = fCurrentTime + 0.25
-                eCrate[CRATE_FLAGS] |= FLAG_SHOW
+                eCrate[CRATE_FLAGS] |= (FLAG_SHOW | FLAG_ACTIVE)
                 eCrate[CRATE_FLAGS] &= ~FLAG_GHOST
 
                 crateSetAnim(eCrate)
@@ -1911,43 +2141,77 @@ public crateTask()
         ArrayGetArray(g_aCrate, i, eCrate)
         bModified = false
 
-        if ( eCrate[CRATE_FLAGS] & FLAG_SHOW
-        && eCrate[CRATE_NEXT_REFILL]
-        && fCurrentTime >= eCrate[CRATE_NEXT_REFILL] )
+        if ( eCrate[CRATE_FLAGS] & FLAG_SHOW )
         {
-            eCrate[CRATE_CAPACITY] = eCrate[CRATE_CAPACITY_MAX]
-            eCrate[CRATE_NEXT_REFILL] = 0.0
-            eCrate[CRATE_NEXT_USE] = fCurrentTime + 0.1
-
-            bModified = true
-        }
-        else if ( eCrate[CRATE_FLAGS] & FLAG_SHOW
-        && eCrate[CRATE_NEXT_USE] > 0.0
-        && get_gametime() >= eCrate[CRATE_NEXT_USE] )
-        {
-            eCrate[CRATE_NEXT_USE] = 0.0
-            crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_IDLE, 1.0)
-
-            bModified = true
-        }
-        else if ( eCrate[CRATE_FLAGS] & FLAG_DEAD
-        && eCrate[CRATE_SHOW] == SHOW_DEFAULT
-        && eCrate[CRATE_SPAWN_MODE] == SPAWN_DELAY
-        && eCrate[CRATE_NEXT_SPAWN]
-        && fCurrentTime >= eCrate[CRATE_NEXT_SPAWN] )
-        {
-            if ( eCrate[CRATE_SPAWN_CHANCE] >= random_float(0.0, 1.0) )
+            if ( eCrate[CRATE_FLAGS] & FLAG_ACTIVE )
             {
-                eCrate[CRATE_FLAGS] |= FLAG_SHOW
-                eCrate[CRATE_NEXT_SPAWN] = 0.0
-                crateState(eCrate, true, true)
-                crateSound(eCrate[CRATE_ID], SOUND_PLACE, .bPlayer = false)
+                if ( eCrate[CRATE_NEXT_USE]
+                && fCurrentTime >= eCrate[CRATE_NEXT_USE] )
+                {
+                    eCrate[CRATE_NEXT_USE] = 0.0
+                    crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_IDLE, 1.0)
 
-                bModified = true
+                    bModified = true
+                }
+            
+                if ( eCrate[CRATE_NEXT_DISABLE] > 0.0
+                && fCurrentTime >= eCrate[CRATE_NEXT_DISABLE] )
+                {
+                    eCrate[CRATE_FLAGS] &= ~FLAG_ACTIVE
+                    eCrate[CRATE_NEXT_DISABLE] = 0.0
+                    eCrate[CRATE_NEXT_ENABLE] = fCurrentTime + random_float(eCrate[CRATE_ACTIVE_COOLDOWN][0], eCrate[CRATE_ACTIVE_COOLDOWN][1])
+                    eCrate[CRATE_NEXT_USE] = 0.0
+                    crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_IDLE, 1.0)
+
+                    bModified = true
+                } 
             }
             else
             {
-                eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
+                if ( eCrate[CRATE_NEXT_REFILL]
+                && fCurrentTime >= eCrate[CRATE_NEXT_REFILL] )
+                {
+                    eCrate[CRATE_CAPACITY] = eCrate[CRATE_CAPACITY_MAX]
+                    eCrate[CRATE_NEXT_REFILL] = 0.0
+                    eCrate[CRATE_NEXT_USE] = fCurrentTime + 0.1
+
+                    bModified = true
+                }
+
+                if ( eCrate[CRATE_NEXT_ENABLE] > 0.0
+                && fCurrentTime >= eCrate[CRATE_NEXT_ENABLE] )
+                {
+                    eCrate[CRATE_FLAGS] |= FLAG_ACTIVE
+                    eCrate[CRATE_NEXT_ENABLE] = 0.0
+
+                    if ( !(eCrate[CRATE_FLAGS] & FLAG_ACTIVE_PERMANENT) )
+                        eCrate[CRATE_NEXT_DISABLE] = fCurrentTime + random_float(eCrate[CRATE_ACTIVE_DURATION][0], eCrate[CRATE_ACTIVE_DURATION][1])
+
+                    bModified = true
+                }
+            }
+        }
+        else 
+        {
+            if ( eCrate[CRATE_FLAGS] & FLAG_DEAD
+            && eCrate[CRATE_SHOW] == SHOW_DEFAULT
+            && eCrate[CRATE_SPAWN_MODE] == SPAWN_DELAY
+            && eCrate[CRATE_NEXT_SPAWN]
+            && fCurrentTime >= eCrate[CRATE_NEXT_SPAWN] )
+            {
+                if ( eCrate[CRATE_SPAWN_CHANCE] >= random_float(0.0, 1.0) )
+                {
+                    eCrate[CRATE_FLAGS] |= FLAG_SHOW
+                    eCrate[CRATE_NEXT_SPAWN] = 0.0
+
+                    crateState(eCrate, true, true)
+                    crateSound(eCrate[CRATE_ID], SOUND_BUTTON4, .bPlayer = false)
+                    bModified = true
+                }
+                else
+                {
+                    eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
+                }
             }
         }
 
@@ -2032,6 +2296,9 @@ public saveData(id)
         eCrate[CRATE_ANGLES][0], eCrate[CRATE_ANGLES][1], eCrate[CRATE_ANGLES][2])
         fputs(iFile, szData)
 
+        formatex(szData, charsmax(szData), "status = %d^n", eCrate[CRATE_SHOW])
+        fputs(iFile, szData)
+
         formatex(szData, charsmax(szData), "show = %d^n", eCrate[CRATE_SHOW])
         fputs(iFile, szData)
 
@@ -2059,7 +2326,7 @@ stock loadData()
     new szFile[128], iFile,
         szData[64], szKey[32], szValue[32],
         Float:fOrigin[3], Float:fAngles[3], iItem,
-        iShow, iFlags, iTeam, iSpawn, iCount = -1
+        iStatus, iShow, iFlags, iTeam, iSpawn, iCount = -1
 
     get_mapname(szFile, charsmax(szFile))
     format(szFile, charsmax(szFile), "maps/%s_SupplyCrate.ini", szFile)
@@ -2079,7 +2346,7 @@ stock loadData()
         {
             if ( iCount != -1 )
             {
-                loadDataCrate(fOrigin, fAngles, iShow, iFlags, iTeam, iSpawn, iItem, iCount)
+                loadDataCrate(fOrigin, fAngles, iStatus, iShow, iFlags, iTeam, iSpawn, iItem, iCount)
             }
 
             iCount ++
@@ -2112,6 +2379,10 @@ stock loadData()
                 fAngles[1] = str_to_float(szKey)
                 fAngles[2] = str_to_float(szValue)
             }
+            else if ( equal(szKey, "status") )
+            {
+                iStatus = str_to_num(szValue)
+            }
             else if ( equal(szKey, "show") )
             {
                 iShow = str_to_num(szValue)
@@ -2132,13 +2403,13 @@ stock loadData()
     }
 
     if ( iCount != -1 )
-        loadDataCrate(fOrigin, fAngles, iShow, iFlags, iTeam, iSpawn, iItem, iCount)
+        loadDataCrate(fOrigin, fAngles, iStatus, iShow, iFlags, iTeam, iSpawn, iItem, iCount)
 
     fclose(iFile)
     return PLUGIN_HANDLED
 }
 
-stock loadDataCrate(Float:fOrigin[3], Float:fAngles[3], iShow, iFlags, iTeam, iSpawnMode, iItem, iCount)
+stock loadDataCrate(Float:fOrigin[3], Float:fAngles[3], iStatus, iShow, iFlags, iTeam, iSpawnMode, iItem, iCount)
 {
     new eCrate[CRATE], Float:fCurrentTime
 
@@ -2152,6 +2423,7 @@ stock loadDataCrate(Float:fOrigin[3], Float:fAngles[3], iShow, iFlags, iTeam, iS
     set_pev(eCrate[CRATE_ID], pev_angles, fAngles)
 
     eCrate[CRATE_NEXT_USE]      = fCurrentTime + 0.25
+    eCrate[CRATE_STATUS]        = iStatus
     eCrate[CRATE_SHOW]          = iShow
     eCrate[CRATE_FLAGS]         = iFlags
     eCrate[CRATE_TEAM]          = iTeam
@@ -2164,11 +2436,9 @@ stock loadDataCrate(Float:fOrigin[3], Float:fAngles[3], iShow, iFlags, iTeam, iS
         eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
 
     crateSetBox(eCrate)
+    crateSetAnim(eCrate, false)
     if ( eCrate[CRATE_FLAGS] & FLAG_SHOW )
-    {
-        crateSetAnim(eCrate, false)
         crateSetSolid(eCrate)
-    }
 
     ArraySetArray(g_aCrate, iCount, eCrate)
 }
@@ -2221,8 +2491,8 @@ public fwdAddToFullPack(es, e, iEnt, iHost, iHostFlags, iPlayer, pSet)
     }
     else if ( eCrate[CRATE_FLAGS] & FLAG_SELECT )
     {
-        if ( eCrate[CRATE_CAPACITY] > 0.0 ) set_es(es, ES_RenderColor, g_eSettings[SETTING_COLOR_ACTIVE])
-        else                                set_es(es, ES_RenderColor, g_eSettings[SETTING_COLOR_INACTIVE])
+        if ( eCrate[CRATE_FLAGS] & FLAG_ACTIVE )    set_es(es, ES_RenderColor, g_eSettings[SETTING_COLOR_ACTIVE])
+        else                                        set_es(es, ES_RenderColor, g_eSettings[SETTING_COLOR_INACTIVE])
 
         set_es(es, ES_RenderAmt, 32)
         set_es(es, ES_RenderFx, kRenderFxGlowShell)
@@ -2472,24 +2742,21 @@ stock bool:crateAllow(id, eCrate[CRATE])
     new iWeaponID
     iWeaponID = cs_get_user_weapon(id)
 
-    if ( iWeaponID == CSW_KNIFE || iWeaponID == CSW_C4 )    return false
-    else if ( eCrate[CRATE_WEAPON_MODE] == WEAPON_ONLY )    return eCrate[CRATE_WEAPON_LIST][iWeaponID]
-    else if ( eCrate[CRATE_WEAPON_MODE] == WEAPON_EXCEPT )  return !eCrate[CRATE_WEAPON_LIST][iWeaponID]
+    if ( eCrate[CRATE_CLASS] == CLASS_MARKET && (iWeaponID == CSW_KNIFE || iWeaponID == CSW_C4) )   return false
+    else if ( eCrate[CRATE_WEAPON_MODE] == WEAPON_ONLY )                                            return eCrate[CRATE_WEAPON_LIST][iWeaponID]
+    else if ( eCrate[CRATE_WEAPON_MODE] == WEAPON_EXCEPT )                                          return !eCrate[CRATE_WEAPON_LIST][iWeaponID]
 
     return true
 }
 
 stock crateSupply(id, eCrate[CRATE], iItem, Float:fCurrentTime)
 {
-    if ( eCrate[CRATE_CAPACITY] > 0
+    if ( eCrate[CRATE_FLAGS] & FLAG_ACTIVE
     && CsTeams:eCrate[CRATE_TEAM] & cs_get_user_team(id)
     && crateAllow(id, eCrate) )
     {
         if ( !g_ePlayerData[id][PDATA_CRATE_USE] )
-        {
             g_ePlayerData[id][PDATA_CRATE_USE] = eCrate[CRATE_ID]
-            crateSound(eCrate[CRATE_ID], SOUND_SUPPLY, .bPlayer = false)
-        }
 
         switch( eCrate[CRATE_CLASS] )
         {
@@ -2500,16 +2767,22 @@ stock crateSupply(id, eCrate[CRATE], iItem, Float:fCurrentTime)
 
         if ( !eCrate[CRATE_CAPACITY] )
         {
-            crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
+            eCrate[CRATE_FLAGS] &= ~FLAG_ACTIVE
+            eCrate[CRATE_NEXT_ENABLE] = 0.0
             eCrate[CRATE_NEXT_EMPTY] = fCurrentTime + 1.0
+            eCrate[CRATE_NEXT_USE] = 0.0
+            crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_IDLE, 1.0)
             g_ePlayerData[id][PDATA_CRATE_USE] = 0
+
+            if ( eCrate[CRATE_FLAGS] & FLAG_REFILL )
+                eCrate[CRATE_NEXT_REFILL] = fCurrentTime + random_float(eCrate[CRATE_REFILL][0], eCrate[CRATE_REFILL][1])
         }
 
         ArraySetArray(g_aCrate, iItem, eCrate)
     }
     else if ( fCurrentTime >= eCrate[CRATE_NEXT_EMPTY] )
     {
-        crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
+        crateSound(eCrate[CRATE_ID], SOUND_LOCKED, .bPlayer = false)
         eCrate[CRATE_NEXT_EMPTY] = fCurrentTime + 1.0
 
         ArraySetArray(g_aCrate, iItem, eCrate)
@@ -2543,12 +2816,12 @@ stock supplyAmmo(id, eCrate[CRATE], Float:fCurrentTime)
         if ( !iClip )
             client_cmd(id, "+attack; wait; -attack;")
 
-        crateSound(eCrate[CRATE_ID], SOUND_SUPPLY, .bPlayer = false)
+        crateSound(eCrate[CRATE_ID], SOUND_CLIP, .bPlayer = false)
     }
     else if ( fCurrentTime >= eCrate[CRATE_NEXT_EMPTY] )
     {
         eCrate[CRATE_NEXT_EMPTY] = fCurrentTime + 1.0
-        crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
+        crateSound(eCrate[CRATE_ID], SOUND_LOCKED, .bPlayer = false)
     }
 }
 
@@ -2564,7 +2837,7 @@ stock supplyGrenades(id, eCrate[CRATE], Float:fCurrentTime)
     eCrate[CRATE_CAPACITY] -= 1.0
     eCrate[CRATE_NEXT_USE] = fCurrentTime + eCrate[CRATE_COOLDOWN]
     crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_OPENCLOSE, eCrate[CRATE_FRAMERATE])
-    crateSound(eCrate[CRATE_ID], SOUND_SUPPLY, .bPlayer = false)
+    crateSound(eCrate[CRATE_ID], SOUND_CLIP, .bPlayer = false)
 }
 
 stock supplyMarket(id, eCrate[CRATE], Float:fCurrentTime)
@@ -2579,12 +2852,12 @@ stock supplyMarket(id, eCrate[CRATE], Float:fCurrentTime)
         eCrate[CRATE_CAPACITY] -= 1.0
         eCrate[CRATE_NEXT_USE] = fCurrentTime + eCrate[CRATE_COOLDOWN]
         crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_OPENCLOSE, eCrate[CRATE_FRAMERATE])
-        crateSound(eCrate[CRATE_ID], SOUND_SELL, .bPlayer = false)
+        crateSound(eCrate[CRATE_ID], SOUND_CHCHING, .bPlayer = false)
     }
     else if ( fCurrentTime >= eCrate[CRATE_NEXT_EMPTY] )
     {
         eCrate[CRATE_NEXT_EMPTY] = fCurrentTime + 1.0
-        crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
+        crateSound(eCrate[CRATE_ID], SOUND_LOCKED, .bPlayer = false)
     }
 }
 
@@ -2669,26 +2942,26 @@ stock crateSetOffset(eCrate[CRATE])
 
 stock crateSetAnim(eCrate[CRATE], bool:bPlaySound = true)
 {
-    if ( eCrate[CRATE_CAPACITY] > 0.0 )
+    if ( eCrate[CRATE_FLAGS] & FLAG_ACTIVE )
     {
-        if ( eCrate[CRATE_DELAY_ACTIVE] > 0.0 )
+        if ( eCrate[CRATE_FLAGS] & FLAG_ACTIVE_DELAY )
         {
-            eCrate[CRATE_CAPACITY] = 0.0
-            eCrate[CRATE_NEXT_REFILL] = get_gametime() + eCrate[CRATE_DELAY_ACTIVE]
+            eCrate[CRATE_FLAGS] &= ~FLAG_ACTIVE
+            eCrate[CRATE_NEXT_ENABLE] = get_gametime() + random_float(eCrate[CRATE_ACTIVE_DELAY][0], eCrate[CRATE_ACTIVE_DELAY][1])
 
             if ( bPlaySound )
-                crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
+                crateSound(eCrate[CRATE_ID], SOUND_LOCKED, .bPlayer = false)
         }
         else
         {
             if ( bPlaySound )
-                crateSound(eCrate[CRATE_ID], SOUND_PLACE, .bPlayer = false)
+                crateSound(eCrate[CRATE_ID], SOUND_BUTTON4, .bPlayer = false)
         }
     }
     else
     {
         if ( bPlaySound )
-            crateSound(eCrate[CRATE_ID], SOUND_EMPTY, .bPlayer = false)
+            crateSound(eCrate[CRATE_ID], SOUND_LOCKED, .bPlayer = false)
     }
 }
 
@@ -2700,15 +2973,15 @@ stock crateSetSolid(eCrate[CRATE])
     set_pev(eCrate[CRATE_ID], pev_solid, SOLID_BBOX)
     set_pev(eCrate[CRATE_ID], pev_movetype, MOVETYPE_NONE)
     set_pev(eCrate[CRATE_ID], pev_takedamage, DAMAGE_AIM)
-    set_pev(eCrate[CRATE_ID], pev_health, eCrate[CRATE_HEALTH])
+    set_pev(eCrate[CRATE_ID], pev_health, random_float(eCrate[CRATE_HEALTH][0], eCrate[CRATE_HEALTH][1]))
 
     xs_vec_copy(eCrate[CRATE_MINS], fMins)
     xs_vec_copy(eCrate[CRATE_MAXS], fMaxs)
     engfunc(EngFunc_SetSize, eCrate[CRATE_ID], fMins, fMaxs)
     set_rendering(eCrate[CRATE_ID], kRenderFxNone, 255, 255, 255, kRenderNormal, 255)
 }
-
-stock crateSetSeq(iEnt, iSequence, Float:fFrameRate)
+ 
+stock crateSetSeq(iEnt, iSequence, Float:fFrameRate = 1.0)
 {
     set_pev(iEnt, pev_sequence, iSequence)
     set_pev(iEnt, pev_frame, 0.0)
@@ -2740,9 +3013,10 @@ stock crateParticles(Float:fOrigin[3])
 
 stock crateExplode(eCrate[CRATE])
 {
-    new Float:fDistance, Float:fRatio, Float:fDamage,
+    new Float:fDistance, Float:fRatio, Float:fDamage, Float:fRadius,
         Float:fVec1[3], Float:fVec2[3], iEnt = -1
 
+    fRadius = random_float(eCrate[CRATE_EXPLODE_RADIUS][0], eCrate[CRATE_EXPLODE_RADIUS][1])
     xs_vec_copy(eCrate[CRATE_ORIGIN], fVec1)
     message_begin_f(MSG_PVS, SVC_TEMPENTITY, fVec1)
     write_byte(TE_EXPLOSION)
@@ -2750,7 +3024,7 @@ stock crateExplode(eCrate[CRATE])
     write_coord_f(fVec1[1])
     write_coord_f(fVec1[2])
     write_short(g_eSettings[SETTING_SPRITE_ZEROGXPLODE])
-    write_byte(floatround(eCrate[CRATE_EXPLODE_RADIUS] / 15.0))
+    write_byte(floatround(fRadius / 15.0))
     write_byte(15)
     write_byte(TE_EXPLFLAG_NONE)
     message_end()
@@ -2766,7 +3040,7 @@ stock crateExplode(eCrate[CRATE])
     write_byte(random_num(46, 48))
     message_end()
 
-    while ( (iEnt = engfunc(EngFunc_FindEntityInSphere, iEnt, eCrate[CRATE_ORIGIN], eCrate[CRATE_EXPLODE_RADIUS])) )
+    while ( (iEnt = engfunc(EngFunc_FindEntityInSphere, iEnt, eCrate[CRATE_ORIGIN], fRadius)) )
     {
         if ( !pev_valid(iEnt)
         || pev(iEnt, pev_takedamage) == DAMAGE_NO
@@ -2779,11 +3053,11 @@ stock crateExplode(eCrate[CRATE])
         xs_vec_mul_scalar(fVec1, 0.5, fVec1)
 
         fDistance = xs_vec_distance(eCrate[CRATE_ORIGIN], fVec1)
-        if ( fDistance > eCrate[CRATE_EXPLODE_RADIUS] )
+        if ( fDistance > fRadius )
             continue
 
-        fRatio = 1.0 - fDistance / eCrate[CRATE_EXPLODE_RADIUS]
-        fDamage = eCrate[CRATE_EXPLODE_DAMAGE] * fRatio
+        fRatio = 1.0 - fDistance / fRadius
+        fDamage = random_float(eCrate[CRATE_EXPLODE_DAMAGE][0], eCrate[CRATE_EXPLODE_DAMAGE][1]) * fRatio
 
         fakedamage(iEnt, "weapon_hegrenade", fDamage, DMG_GRENADE)
     }
@@ -2822,7 +3096,7 @@ stock crateState(eCrate[CRATE], bool:bShow, bool:bFlag)
 
         if ( bFlag )
         {
-            set_pev(eCrate[CRATE_ID], pev_health, eCrate[CRATE_HEALTH])
+            set_pev(eCrate[CRATE_ID], pev_health, random_float(eCrate[CRATE_HEALTH][0], eCrate[CRATE_HEALTH][1]))
             eCrate[CRATE_CAPACITY] = eCrate[CRATE_CAPACITY_MAX]
 
             eCrate[CRATE_FLAGS] &= ~FLAG_DEAD
@@ -2835,8 +3109,21 @@ stock crateState(eCrate[CRATE], bool:bShow, bool:bFlag)
         set_pev(eCrate[CRATE_ID], pev_takedamage, DAMAGE_NO)
 
         if ( bFlag )
+        {
             eCrate[CRATE_FLAGS] |= FLAG_DEAD
+            eCrate[CRATE_NEXT_USE] = 0.0
+            crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_IDLE, 1.0)
+        }
     }
+}
+
+stock crateReset(eCrate[CRATE])
+{
+    eCrate[CRATE_NEXT_USE]      = 0.0
+    eCrate[CRATE_NEXT_EMPTY]    = 0.0
+    eCrate[CRATE_NEXT_REFILL]   = 0.0
+    eCrate[CRATE_NEXT_ENABLE]   = 0.0
+    eCrate[CRATE_NEXT_DISABLE]  = 0.0
 }
 
 stock crateSound(iEnt, iSound, iChan = CHAN_ITEM, bool:bPlayer = true, iFlags = 0)
@@ -2848,13 +3135,11 @@ stock crateSound(iEnt, iSound, iChan = CHAN_ITEM, bool:bPlayer = true, iFlags = 
         case SOUND_MENU_NAV:        copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_NAV])
         case SOUND_MENU_REMOVE:     copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_REMOVE])
         case SOUND_MENU_ALERT:      copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_MENU_ALERT])
-        case SOUND_PLACE:           copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_PLACE])
-        case SOUND_EMPTY:           copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_EMPTY])
-        case SOUND_REMOVE:          copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_REMOVE])
-        case SOUND_SUPPLY:          copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_SUPPLY])
-        case SOUND_SELL:            copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_SELL])
-        case SOUND_REFILL:          copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_REFILL])
-        case SOUND_METAL:           ArrayGetString(g_eSettings[SETTING_SOUND_METAL],    random(ArraySize(g_eSettings[SETTING_SOUND_METAL])),    szSample, charsmax(szSample))
+        case SOUND_BUTTON4:         copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_BUTTON4])
+        case SOUND_LOCKED:          copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_LOCKED])
+        case SOUND_CLIP:            copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_CLIP])
+        case SOUND_CHCHING:         copy(szSample, charsmax(szSample), g_eSettings[SETTING_SOUND_CHCHING])
+        case SOUND_METAL:           ArrayGetString(g_eSettings[SETTING_SOUND_METAL], random(ArraySize(g_eSettings[SETTING_SOUND_METAL])),    szSample, charsmax(szSample))
     }
 
     if ( bPlayer )
