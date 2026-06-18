@@ -36,6 +36,7 @@
 *             Added CRATE_FACTOR_MAX for ammo crates to control maximum supply
 *       v2.3: Added weapon interaction list for crates,
 *             Precached busting metal sounds and gibs for maps that do not support them
+*       v2.4: added FLAG_ACTIVE_DURATION, improved round-start logic
 *
 */
 
@@ -116,7 +117,7 @@ enum
     FLAG_EXPLODE            = (1 << 1),
     FLAG_REFILL             = (1 << 2),
     FLAG_ACTIVE_DELAY       = (1 << 3),
-    FLAG_ACTIVE_PERMANENT   = (1 << 4),
+    FLAG_ACTIVE_DURATION    = (1 << 4),
 
     FLAG_SHOW               = (1 << 5),
     FLAG_DEAD               = (1 << 6),
@@ -2184,7 +2185,7 @@ public crateTask()
                     eCrate[CRATE_FLAGS] |= FLAG_ACTIVE
                     eCrate[CRATE_NEXT_ENABLE] = 0.0
 
-                    if ( !(eCrate[CRATE_FLAGS] & FLAG_ACTIVE_PERMANENT) )
+                    if ( eCrate[CRATE_FLAGS] & FLAG_ACTIVE_DURATION )
                         eCrate[CRATE_NEXT_DISABLE] = fCurrentTime + random_float(eCrate[CRATE_ACTIVE_DURATION][0], eCrate[CRATE_ACTIVE_DURATION][1])
 
                     bModified = true
@@ -2954,6 +2955,9 @@ stock crateSetAnim(eCrate[CRATE], bool:bPlaySound = true)
         }
         else
         {
+            if ( eCrate[CRATE_FLAGS] & FLAG_ACTIVE_DURATION )
+                eCrate[CRATE_NEXT_DISABLE] = get_gametime() + random_float(eCrate[CRATE_ACTIVE_DURATION][0], eCrate[CRATE_ACTIVE_DURATION][1])
+
             if ( bPlaySound )
                 crateSound(eCrate[CRATE_ID], SOUND_BUTTON4, .bPlayer = false)
         }

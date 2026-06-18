@@ -1,5 +1,5 @@
 [en] -- RedSMURF
-CRATE_CHAT_TAG                      = ^4[CRATE]^1
+CRATE_CHAT_TAG                      = ^4[SUPPLY CRATE]^1
 CRATE_CHAT_LIMIT                    = You've reached the maximum number of Crates ^4%d
 CRATE_CHAT_NO_CRATE                 = There are no Crates available
 CRATE_CHAT_NO_DATA                  = Crate data hasn't been found
