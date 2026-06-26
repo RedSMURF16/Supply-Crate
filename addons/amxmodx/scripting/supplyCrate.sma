@@ -113,6 +113,23 @@ enum
 
 enum
 {
+    DTYPE_FLOAT,
+    DTYPE_FLOAT_RANGE,
+    DTYPE_INT,
+    DTYPE_INT_RANGE,
+    DTYPE_BOOL,
+    DTYPE_FLAGS,
+    DTYPE_VECTOR,
+    DTYPE_VECTOR_FLOAT,
+    DTYPE_ARRAY_SOUND,
+    DTYPE_STRING_MODEL,
+    DTYPE_STRING_SOUND,
+    DTYPE_STRING_SPRITE,
+    DTYPE_VECTOR_LIST
+}
+
+enum
+{
     FLAG_BREAK              = (1 << 0),
     FLAG_EXPLODE            = (1 << 1),
     FLAG_REFILL             = (1 << 2),
@@ -191,6 +208,7 @@ enum _:MAIN_SETTINGS
     Float:SETTING_DEFAULT_EXPLODE_DAMAGE[2],
     Float:SETTING_DEFAULT_EXPLODE_RADIUS[2],
     SETTING_DEFAULT_WEAPON_MODE,
+    SETTING_DEFAULT_WEAPON_LIST[31],
 
     Float:SETTING_MINS[3],
     Float:SETTING_MAXS[3],
@@ -309,9 +327,6 @@ enum
     MENU_CREATE,
     MENU_STATUS,
     MENU_REMOVE,
-    MENU_SHOW,
-    MENU_TEAM,
-    MENU_SPAWN,
     MENU_ROTATE
 }
 
@@ -322,12 +337,8 @@ enum
     ROOT_REMOVE,
     ROOT_SAVE,
 
-    ROOT_NOCLIP = 4,
-    ROOT_GODMODE,
-
-    ROOT_SHOW = 7,
-    ROOT_TEAM,
-    ROOT_SPAWN
+    ROOT_NOCLIP = 5,
+    ROOT_GODMODE
 }
 
 enum
@@ -348,40 +359,6 @@ enum
 
     REMOVE_CURRENT = 3,
     REMOVE_ALL
-}
-
-enum
-{
-    SHOW_NEXT,
-    SHOW_BACK,
-
-    SHOW_CURRENT = 3,
-    SHOW_ALL_HIDE,
-    SHOW_ALL_SHOW,
-    SHOW_ALL_DEFAULT
-}
-
-enum
-{
-    TEAM_NEXT,
-    TEAM_BACK,
-
-    TEAM_CURRENT = 3,
-    TEAM_ALL_NONE,
-    TEAM_ALL_T,
-    TEAM_ALL_CT,
-    TEAM_ALL_BOTH
-}
-
-enum
-{
-    SPAWN_NEXT,
-    SPAWN_BACK,
-
-    SPAWN_CURRENT = 3,
-    SPAWN_ALL_NEVER,
-    SPAWN_ALL_DELAY,
-    SPAWN_ALL_ROUND_START
 }
 
 enum
@@ -423,9 +400,6 @@ new g_szMenuHandler[][] =
     "menuHandlerCreate",
     "menuHandlerStatus",
     "menuHandlerRemove",
-    "menuHandlerShow",
-    "menuHandlerTeam",
-    "menuHandlerSpawn",
     "menuHandlerRotate"
 }
 
@@ -449,13 +423,6 @@ new Array:g_aCrate,
 new g_szStatus[][] = {"CRATE_DEFAULT", "CRATE_ENABLED", "CRATE_DISABLED"}
 new g_szStatusChat[][] = {"CRATE_CHAT_DEFAULT", "CRATE_CHAT_ENABLED", "CRATE_CHAT_DISABLED"}
 new g_szStatusColor[][] = {"\d", "\y", "\r"}
-new g_szShow[][] = {"CRATE_DEFAULT", "CRATE_SHOWN", "CRATE_HIDDEN"}
-new g_szShowChat[][] = {"CRATE_CHAT_DEFAULT", "CRATE_CHAT_SHOWN", "CRATE_CHAT_HIDDEN"}
-new g_szShowColor[][] = {"\d", "\y", "\r"}
-new g_szTeam[][] = {"CRATE_NONE", "CRATE_T", "CRATE_CT", "CRATE_BOTH"}
-new g_szTeamChat[][] = {"CRATE_CHAT_NONE", "CRATE_CHAT_T", "CRATE_CHAT_CT", "CRATE_CHAT_BOTH"}
-new g_szSpawn[][] = {"CRATE_NEVER", "CRATE_DELAY", "CRATE_ROUND_START"}
-new g_szSpawnChat[][] = {"CRATE_CHAT_NEVER", "CRATE_CHAT_DELAY", "CRATE_CHAT_ROUND_START"}
 
 public plugin_init()
 {
@@ -616,7 +583,7 @@ stock ReadFile()
     new szData[MAX_FILE_CELL_SIZE],
         szKey[MAX_VALUE_LENGTH],
         szValue[MAX_RESOURCE_PATH_LENGTH],
-        eCrate[CRATE], iSection = SECTION_NONE, iLine, iWeapon, iPos
+        eCrate[CRATE], iSection = SECTION_NONE, iLine, iPos
 
     while( !feof(iFile) )
     {
@@ -716,430 +683,159 @@ stock ReadFile()
                     case SECTION_MAIN_SETTINGS:
                     {
                         if ( equali(szKey, "SETTING_DEFAULT_MODEL") )
-                        {
-                            copy(g_eSettings[SETTING_DEFAULT_MODEL], charsmax(g_eSettings[SETTING_DEFAULT_MODEL]), szValue)
-                            if ( !g_bFileWasRead ) precache_model(g_eSettings[SETTING_DEFAULT_MODEL])
-                        }
+                            parseSetting(DTYPE_STRING_MODEL, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_MODEL], charsmax(g_eSettings[SETTING_DEFAULT_MODEL]))
                         else if ( equali(szKey, "SETTING_DEFAULT_GIB") )
-                        {
-                            if ( !g_bFileWasRead )
-                                g_eSettings[SETTING_DEFAULT_GIB] = precache_model(szValue)
-                        }
+                            parseSetting(DTYPE_STRING_MODEL, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_GIB], charsmax(g_eSettings[SETTING_DEFAULT_GIB]))
                         else if ( equali(szKey, "SETTING_DEFAULT_CLASS") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_CLASS] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_CLASS], charsmax(g_eSettings[SETTING_DEFAULT_CLASS]))
                         else if ( equali(szKey, "SETTING_DEFAULT_FLAGS") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_FLAGS] = read_flags(szValue)
-                            g_eSettings[SETTING_DEFAULT_FLAGS] &= 31
-                        }
+                            parseSetting(DTYPE_FLAGS, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_FLAGS], charsmax(g_eSettings[SETTING_DEFAULT_FLAGS]))
                         else if ( equali(szKey, "SETTING_DEFAULT_TEAM") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_TEAM] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_TEAM], charsmax(g_eSettings[SETTING_DEFAULT_TEAM]))
                         else if ( equali(szKey, "SETTING_DEFAULT_MODE") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_MODE] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_MODE], charsmax(g_eSettings[SETTING_DEFAULT_MODE]))
                         else if ( equali(szKey, "SETTING_DEFAULT_REFILL") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_DEFAULT_REFILL][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_DEFAULT_REFILL][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_REFILL], charsmax(g_eSettings[SETTING_DEFAULT_REFILL]))
                         else if ( equali(szKey, "SETTING_DEFAULT_COOLDOWN") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_COOLDOWN] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_COOLDOWN], charsmax(g_eSettings[SETTING_DEFAULT_COOLDOWN]))
                         else if ( equali(szKey, "SETTING_DEFAULT_CAPACITY") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_CAPACITY] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_CAPACITY], charsmax(g_eSettings[SETTING_DEFAULT_CAPACITY]))
                         else if ( equali(szKey, "SETTING_DEFAULT_SPAWN_MODE") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_SPAWN_MODE] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_SPAWN_MODE], charsmax(g_eSettings[SETTING_DEFAULT_SPAWN_MODE]))
                         else if ( equali(szKey, "SETTING_DEFAULT_SPAWN") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_DEFAULT_SPAWN][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_DEFAULT_SPAWN][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_SPAWN], charsmax(g_eSettings[SETTING_DEFAULT_SPAWN]))
                         else if ( equali(szKey, "SETTING_DEFAULT_SPAWN_CHANCE") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE], charsmax(g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE]))
                         else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_DELAY") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY], charsmax(g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY]))
                         else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_DURATION") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION], charsmax(g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION]))
                         else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_COOLDOWN") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN], charsmax(g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN]))
                         else if ( equali(szKey, "SETTING_DEFAULT_HEALTH") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_DEFAULT_HEALTH][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_DEFAULT_HEALTH][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_HEALTH], charsmax(g_eSettings[SETTING_DEFAULT_HEALTH]))
                         else if ( equali(szKey, "SETTING_DEFAULT_ARMOR") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_DEFAULT_ARMOR][0] = str_to_num(szKey)
-                            g_eSettings[SETTING_DEFAULT_ARMOR][1] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_ARMOR], charsmax(g_eSettings[SETTING_DEFAULT_ARMOR]))
                         else if ( equali(szKey, "SETTING_DEFAULT_FACTOR") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_FACTOR] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_FACTOR], charsmax(g_eSettings[SETTING_DEFAULT_FACTOR]))
                         else if ( equali(szKey, "SETTING_DEFAULT_FACTOR_MAX") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_FACTOR_MAX] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_FACTOR_MAX], charsmax(g_eSettings[SETTING_DEFAULT_FACTOR_MAX]))
                         else if ( equali(szKey, "SETTING_DEFAULT_EXPLODE_DAMAGE") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE], charsmax(g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE]))
                         else if ( equali(szKey, "SETTING_DEFAULT_EXPLODE_RADIUS") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS], charsmax(g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS]))
                         else if ( equali(szKey, "SETTING_DEFAULT_WEAPON_MODE") )
-                        {
-                            g_eSettings[SETTING_DEFAULT_WEAPON_MODE] = str_to_num(szValue)
-                            g_eSettings[SETTING_DEFAULT_WEAPON_MODE] = clamp(g_eSettings[SETTING_DEFAULT_WEAPON_MODE], WEAPON_ALL, WEAPON_EXCEPT)
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_WEAPON_MODE], charsmax(g_eSettings[SETTING_DEFAULT_WEAPON_MODE]))
+                        else if ( equali(szKey, "SETTING_DEFAULT_WEAPON_LIST") )
+                            parseSetting(DTYPE_VECTOR_LIST, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_WEAPON_LIST], charsmax(g_eSettings[SETTING_DEFAULT_WEAPON_LIST]))
                         else if ( equali(szKey, "SETTING_MINS") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_MINS][0] = str_to_float(szKey)
-
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_MINS][1] = str_to_float(szKey)
-                            g_eSettings[SETTING_MINS][2] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_VECTOR_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_MINS], charsmax(g_eSettings[SETTING_MINS]))
                         else if ( equali(szKey, "SETTING_MAXS") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_MAXS][0] = str_to_float(szKey)
-
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_MAXS][1] = str_to_float(szKey)
-                            g_eSettings[SETTING_MAXS][2] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_VECTOR_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_MAXS], charsmax(g_eSettings[SETTING_MAXS]))
                         else if ( equali(szKey, "SETTING_CRATE_LOAD") )
-                        {
-                            g_eSettings[SETTING_CRATE_LOAD] = bool:str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_BOOL, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_CRATE_LOAD], charsmax(g_eSettings[SETTING_CRATE_LOAD]))
                         else if ( equali(szKey, "SETTING_CRATE_RANGE") )
-                        {
-                            g_eSettings[SETTING_CRATE_RANGE] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_CRATE_RANGE], charsmax(g_eSettings[SETTING_CRATE_RANGE]))
                         else if ( equali(szKey, "SETTING_OFFSET_BASE") )
-                        {
-                            g_eSettings[SETTING_OFFSET_BASE] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_OFFSET_BASE], charsmax(g_eSettings[SETTING_OFFSET_BASE]))
                         else if ( equali(szKey, "SETTING_OFFSET") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_OFFSET][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_OFFSET][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_OFFSET], charsmax(g_eSettings[SETTING_OFFSET]))
                         else if ( equali(szKey, "SETTING_OFFSET_STEP") )
-                        {
-                            g_eSettings[SETTING_OFFSET_STEP] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_OFFSET_STEP], charsmax(g_eSettings[SETTING_OFFSET_STEP]))
                         else if ( equali(szKey, "SETTING_OFFSET_FREQ") )
-                        {
-                            g_eSettings[SETTING_OFFSET_FREQ] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_OFFSET_FREQ], charsmax(g_eSettings[SETTING_OFFSET_FREQ]))
                         else if ( equali(szKey, "SETTING_GHOST_ALPHA") )
-                        {
-                            g_eSettings[SETTING_GHOST_ALPHA] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_GHOST_ALPHA], charsmax(g_eSettings[SETTING_GHOST_ALPHA]))
                         else if ( equali(szKey, "SETTING_BREAK_VELO_Z") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_BREAK_VELO_Z][0] = str_to_float(szKey)
-                            g_eSettings[SETTING_BREAK_VELO_Z][1] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_BREAK_VELO_Z], charsmax(g_eSettings[SETTING_BREAK_VELO_Z]))
                         else if ( equali(szKey, "SETTING_BREAK_VELO_RANDOM") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_BREAK_VELO_RANDOM][0] = str_to_num(szKey)
-                            g_eSettings[SETTING_BREAK_VELO_RANDOM][1] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_INT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_BREAK_VELO_RANDOM], charsmax(g_eSettings[SETTING_BREAK_VELO_RANDOM]))
                         else if ( equali(szKey, "SETTING_BREAK_COUNT") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_BREAK_COUNT][0] = str_to_num(szKey)
-                            g_eSettings[SETTING_BREAK_COUNT][1] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_INT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_BREAK_COUNT], charsmax(g_eSettings[SETTING_BREAK_COUNT]))
                         else if ( equali(szKey, "SETTING_BREAK_LIFE") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_BREAK_LIFE][0] = str_to_num(szKey)
-                            g_eSettings[SETTING_BREAK_LIFE][1] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_INT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_BREAK_LIFE], charsmax(g_eSettings[SETTING_BREAK_LIFE]))
                         else if ( equali(szKey, "SETTING_SPRITE_ZEROGXPLODE") )
-                        {
-                            if ( !g_bFileWasRead )
-                                g_eSettings[SETTING_SPRITE_ZEROGXPLODE] = precache_model(szValue)
-                        }
+                            parseSetting(DTYPE_STRING_SPRITE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SPRITE_ZEROGXPLODE], charsmax(g_eSettings[SETTING_SPRITE_ZEROGXPLODE]))
                         else if ( equali(szKey, "SETTING_GHOST_FREQ") )
-                        {
-                            g_eSettings[SETTING_GHOST_FREQ] = str_to_float(szValue)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_GHOST_FREQ], charsmax(g_eSettings[SETTING_GHOST_FREQ]))
                         else if ( equali(szKey, "SETTING_SOUND_BUTTON4") )
-                        {
-                            copy(g_eSettings[SETTING_SOUND_BUTTON4], charsmax(g_eSettings[SETTING_SOUND_BUTTON4]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_BUTTON4])
-                        }
+                            parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_BUTTON4], charsmax(g_eSettings[SETTING_SOUND_BUTTON4]))
                         else if ( equali(szKey, "SETTING_SOUND_LOCKED") )
-                        {
-                            copy(g_eSettings[SETTING_SOUND_LOCKED], charsmax(g_eSettings[SETTING_SOUND_LOCKED]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_LOCKED])
-                        }
+                            parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_LOCKED], charsmax(g_eSettings[SETTING_SOUND_LOCKED]))
                         else if ( equali(szKey, "SETTING_SOUND_CLIP") )
-                        {
-                            copy(g_eSettings[SETTING_SOUND_CLIP], charsmax(g_eSettings[SETTING_SOUND_CLIP]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_CLIP])
-                        }
+                            parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_CLIP], charsmax(g_eSettings[SETTING_SOUND_CLIP]))
                         else if ( equali(szKey, "SETTING_SOUND_CHCHING") )
-                        {
-                            copy(g_eSettings[SETTING_SOUND_CHCHING], charsmax(g_eSettings[SETTING_SOUND_CHCHING]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_CHCHING])
-                        }
+                            parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_CHCHING], charsmax(g_eSettings[SETTING_SOUND_CHCHING]))
                         else if ( equali(szKey, "SETTING_SOUND_MENU_NAV") )
-                        {
-                            copy(g_eSettings[SETTING_SOUND_MENU_NAV], charsmax(g_eSettings[SETTING_SOUND_MENU_NAV]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_MENU_NAV])
-                        }
+                            parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_MENU_NAV], charsmax(g_eSettings[SETTING_SOUND_MENU_NAV]))
                         else if ( equali(szKey, "SETTING_SOUND_MENU_REMOVE") )
-                        {
-                            copy(g_eSettings[SETTING_SOUND_MENU_REMOVE], charsmax(g_eSettings[SETTING_SOUND_MENU_REMOVE]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_MENU_REMOVE])
-                        }
+                            parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_MENU_REMOVE], charsmax(g_eSettings[SETTING_SOUND_MENU_REMOVE]))
                         else if ( equali(szKey, "SETTING_SOUND_MENU_ALERT") )
-                        {
-                            copy(g_eSettings[SETTING_SOUND_MENU_ALERT], charsmax(g_eSettings[SETTING_SOUND_MENU_ALERT]), szValue)
-                            if ( !g_bFileWasRead ) precache_sound(g_eSettings[SETTING_SOUND_MENU_ALERT])
-                        }
+                            parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_MENU_ALERT], charsmax(g_eSettings[SETTING_SOUND_MENU_ALERT]))
                         else if ( equali(szKey, "SETTING_SOUND_METAL") )
-                        {
-                            ArrayPushString(g_eSettings[SETTING_SOUND_METAL], szValue)
-                            if ( !g_bFileWasRead ) precache_sound(szValue)
-                        }
+                            parseSetting(DTYPE_ARRAY_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_METAL], charsmax(g_eSettings[SETTING_SOUND_METAL]))
                         else if ( equali(szKey, "SETTING_COLOR_ACTIVE") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_COLOR_ACTIVE][0] = str_to_num(szKey)
-
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_COLOR_ACTIVE][1] = str_to_num(szKey)
-                            g_eSettings[SETTING_COLOR_ACTIVE][2] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_VECTOR, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_COLOR_ACTIVE], charsmax(g_eSettings[SETTING_COLOR_ACTIVE]))
                         else if ( equali(szKey, "SETTING_COLOR_INACTIVE") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_COLOR_INACTIVE][0] = str_to_num(szKey)
-
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            g_eSettings[SETTING_COLOR_INACTIVE][1] = str_to_num(szKey)
-                            g_eSettings[SETTING_COLOR_INACTIVE][2] = str_to_num(szValue)
-                        }
+                            parseSetting(DTYPE_VECTOR, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_COLOR_INACTIVE], charsmax(g_eSettings[SETTING_COLOR_INACTIVE]))
                     }
                     case SECTION_CRATE:
                     {
-                        strtok(szData, szKey, charsmax(szKey), szValue, charsmax(szValue), '=')
-                        trim(szKey)
-                        trim(szValue)
-
                         if ( equali(szKey, "CRATE_MODEL") )
-                        {
-                            copy( eCrate[CRATE_MODEL], charsmax(eCrate[CRATE_MODEL]), szValue)
-                            if ( !equali(g_eSettings[SETTING_DEFAULT_MODEL], szValue) && !g_bFileWasRead )
-                                precache_model(szValue)
-                        }
+                            parseSetting(DTYPE_STRING_MODEL, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_MODEL], charsmax(eCrate[CRATE_MODEL]), g_eSettings[SETTING_DEFAULT_MODEL])
                         else if ( equali(szKey, "CRATE_CLASS") )
-                        {
-                            eCrate[CRATE_CLASS] = str_to_num(szValue)
-                            eCrate[CRATE_CLASS] = clamp(eCrate[CRATE_CLASS], CLASS_AMMO, CLASS_MARKET)
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_CLASS], charsmax(eCrate[CRATE_CLASS]), g_eSettings[SETTING_DEFAULT_CLASS])
                         else if ( equali(szKey, "CRATE_FLAGS") )
-                        {
-                            eCrate[CRATE_FLAGS] = read_flags(szValue)
-                            eCrate[CRATE_FLAGS] &= 31
-                        }
+                            parseSetting(DTYPE_FLAGS, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_FLAGS], charsmax(eCrate[CRATE_FLAGS]), g_eSettings[SETTING_DEFAULT_FLAGS])
                         else if ( equali(szKey, "CRATE_TEAM") )
-                        {
-                            eCrate[CRATE_TEAM] = str_to_num(szValue)
-                            eCrate[CRATE_TEAM] = clamp(eCrate[CRATE_TEAM], TEAM_NONE, TEAM_BOTH)
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_TEAM], charsmax(eCrate[CRATE_TEAM]), g_eSettings[SETTING_DEFAULT_TEAM])
                         else if ( equali(szKey, "CRATE_MODE") )
-                        {
-                            eCrate[CRATE_MODE] = read_flags(szValue)
-                            eCrate[CRATE_MODE] &= 63
-                        }
+                            parseSetting(DTYPE_FLAGS, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_MODE], charsmax(eCrate[CRATE_MODE]), g_eSettings[SETTING_DEFAULT_MODE])
                         else if ( equali(szKey, "CRATE_REFILL") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            eCrate[CRATE_REFILL][0] = str_to_float(szKey)
-                            eCrate[CRATE_REFILL][1] = str_to_float(szValue)
-
-                            if ( eCrate[CRATE_REFILL][0] < 0.0 ) eCrate[CRATE_REFILL][0] = g_eSettings[SETTING_DEFAULT_REFILL][0]
-                            if ( eCrate[CRATE_REFILL][1] < 0.0 ) eCrate[CRATE_REFILL][1] = g_eSettings[SETTING_DEFAULT_REFILL][1]
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_REFILL], charsmax(eCrate[CRATE_REFILL]), g_eSettings[SETTING_DEFAULT_REFILL])
                         else if ( equali(szKey, "CRATE_COOLDOWN") )
                         {
-                            eCrate[CRATE_COOLDOWN] = str_to_float(szValue)
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_COOLDOWN], charsmax(eCrate[CRATE_COOLDOWN]), g_eSettings[SETTING_DEFAULT_COOLDOWN])
                             eCrate[CRATE_COOLDOWN] = floatclamp(eCrate[CRATE_COOLDOWN], 0.5, 40.0)
-
                             eCrate[CRATE_FRAMERATE] = (2.15 + (eCrate[CRATE_COOLDOWN] - 0.5) / (40.0 - 0.5) * (3.25 - 2.15)) / eCrate[CRATE_COOLDOWN]
                         }
                         else if ( equali(szKey, "CRATE_CAPACITY") )
                         {
-                            eCrate[CRATE_CAPACITY] = str_to_float(szValue)
-
-                            if ( eCrate[CRATE_CAPACITY] < 0.0 )
-                                eCrate[CRATE_CAPACITY] = g_eSettings[SETTING_DEFAULT_CAPACITY]
-
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_CAPACITY], charsmax(eCrate[CRATE_CAPACITY]), g_eSettings[SETTING_DEFAULT_CAPACITY])
                             eCrate[CRATE_CAPACITY_MAX] = eCrate[CRATE_CAPACITY]
                         }
                         else if ( equali(szKey, "CRATE_SPAWN_MODE") )
-                        {
-                            eCrate[CRATE_SPAWN_MODE] = str_to_num(szValue)
-                            eCrate[CRATE_SPAWN_MODE] = clamp(eCrate[CRATE_SPAWN_MODE], SPAWN_NEVER, SPAWN_ROUND_START)
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_SPAWN_MODE], charsmax(eCrate[CRATE_SPAWN_MODE]), g_eSettings[SETTING_DEFAULT_SPAWN_MODE])
                         else if ( equali(szKey, "CRATE_SPAWN") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            eCrate[CRATE_SPAWN][0] = str_to_float(szKey)
-                            eCrate[CRATE_SPAWN][1] = str_to_float(szValue)
-
-                            if ( eCrate[CRATE_SPAWN][0] < 0.0 ) eCrate[CRATE_SPAWN][0] = g_eSettings[SETTING_DEFAULT_SPAWN][0]
-                            if ( eCrate[CRATE_SPAWN][1] < 0.0 ) eCrate[CRATE_SPAWN][1] = g_eSettings[SETTING_DEFAULT_SPAWN][1]
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_SPAWN], charsmax(eCrate[CRATE_SPAWN]), g_eSettings[SETTING_DEFAULT_SPAWN])
                         else if ( equali(szKey, "CRATE_SPAWN_CHANCE") )
-                        {
-                            eCrate[CRATE_SPAWN_CHANCE] = str_to_float(szValue)
-                            eCrate[CRATE_SPAWN_CHANCE] = floatclamp(eCrate[CRATE_SPAWN_CHANCE], 0.0, 1.0)
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_SPAWN_CHANCE], charsmax(eCrate[CRATE_SPAWN_CHANCE]), g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE])
                         else if ( equali(szKey, "CRATE_ACTIVE_DELAY") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            eCrate[CRATE_ACTIVE_DELAY][0] = str_to_float(szKey)
-                            eCrate[CRATE_ACTIVE_DELAY][1] = str_to_float(szValue)
-
-                            if ( eCrate[CRATE_ACTIVE_DELAY][0] < 0.0 ) eCrate[CRATE_ACTIVE_DELAY][0] = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][0]
-                            if ( eCrate[CRATE_ACTIVE_DELAY][1] < 0.0 ) eCrate[CRATE_ACTIVE_DELAY][1] = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][1]
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_ACTIVE_DELAY], charsmax(eCrate[CRATE_ACTIVE_DELAY]), g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY])
                         else if ( equali(szKey, "CRATE_ACTIVE_DURATION") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            eCrate[CRATE_ACTIVE_DURATION][0] = str_to_float(szKey)
-                            eCrate[CRATE_ACTIVE_DURATION][1] = str_to_float(szValue)
-
-                            if ( eCrate[CRATE_ACTIVE_DURATION][0] < 0.0 ) eCrate[CRATE_ACTIVE_DURATION][0] = g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][0]
-                            if ( eCrate[CRATE_ACTIVE_DURATION][1] < 0.0 ) eCrate[CRATE_ACTIVE_DURATION][1] = g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION][1]
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_ACTIVE_DURATION], charsmax(eCrate[CRATE_ACTIVE_DURATION]), g_eSettings[SETTING_DEFAULT_ACTIVE_DURATION])
                         else if ( equali(szKey, "CRATE_ACTIVE_COOLDOWN") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            eCrate[CRATE_ACTIVE_COOLDOWN][0] = str_to_float(szKey)
-                            eCrate[CRATE_ACTIVE_COOLDOWN][1] = str_to_float(szValue)
-
-                            if ( eCrate[CRATE_ACTIVE_COOLDOWN][0] < 0.0 ) eCrate[CRATE_ACTIVE_COOLDOWN][0] = g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][0]
-                            if ( eCrate[CRATE_ACTIVE_COOLDOWN][1] < 0.0 ) eCrate[CRATE_ACTIVE_COOLDOWN][1] = g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN][1]
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_ACTIVE_COOLDOWN], charsmax(eCrate[CRATE_ACTIVE_COOLDOWN]), g_eSettings[SETTING_DEFAULT_ACTIVE_COOLDOWN])
                         else if ( equali(szKey, "CRATE_HEALTH") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            eCrate[CRATE_HEALTH][0] = str_to_float(szKey)
-                            eCrate[CRATE_HEALTH][1] = str_to_float(szValue)
-
-                            if ( eCrate[CRATE_HEALTH][0] < 0.0 ) eCrate[CRATE_HEALTH][0] = g_eSettings[SETTING_DEFAULT_HEALTH][0]
-                            if ( eCrate[CRATE_HEALTH][1] < 0.0 ) eCrate[CRATE_HEALTH][1] = g_eSettings[SETTING_DEFAULT_HEALTH][1]
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_HEALTH], charsmax(eCrate[CRATE_HEALTH]), g_eSettings[SETTING_DEFAULT_HEALTH])
                         else if ( equali(szKey, "CRATE_ARMOR") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            eCrate[CRATE_ARMOR][0] = str_to_num(szKey)
-                            eCrate[CRATE_ARMOR][1] = str_to_num(szValue)
-
-                            if ( eCrate[CRATE_ARMOR][0] < 0 ) eCrate[CRATE_ARMOR][0] = g_eSettings[SETTING_DEFAULT_ARMOR][0]
-                            if ( eCrate[CRATE_ARMOR][1] < 0 ) eCrate[CRATE_ARMOR][1] = g_eSettings[SETTING_DEFAULT_ARMOR][1]
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_ARMOR], charsmax(eCrate[CRATE_ARMOR]), g_eSettings[SETTING_DEFAULT_ARMOR])
                         else if ( equali(szKey, "CRATE_FACTOR") )
-                        {
-                            eCrate[CRATE_FACTOR] = str_to_float(szValue)
-
-                            if ( eCrate[CRATE_FACTOR] < 0.0 )
-                                eCrate[CRATE_FACTOR] = g_eSettings[SETTING_DEFAULT_FACTOR]
-                        }
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_FACTOR], charsmax(eCrate[CRATE_FACTOR]), g_eSettings[SETTING_DEFAULT_FACTOR])
                         else if ( equali(szKey, "CRATE_FACTOR_MAX") )
                         {
-                            eCrate[CRATE_FACTOR_MAX] = str_to_float(szValue)
-
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_FACTOR_MAX], charsmax(eCrate[CRATE_FACTOR_MAX]), g_eSettings[SETTING_DEFAULT_FACTOR_MAX])
                             if ( eCrate[CRATE_FACTOR_MAX] < eCrate[CRATE_FACTOR] )
                                 eCrate[CRATE_FACTOR_MAX] = eCrate[CRATE_FACTOR]
                         }
                         else if ( equali(szKey, "CRATE_EXPLODE_DAMAGE") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            eCrate[CRATE_EXPLODE_DAMAGE][0] = str_to_float(szKey)
-                            eCrate[CRATE_EXPLODE_DAMAGE][1] = str_to_float(szValue)
-
-                            if ( eCrate[CRATE_EXPLODE_DAMAGE][0] < 0.0 ) eCrate[CRATE_EXPLODE_DAMAGE][0] = g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE][0]
-                            if ( eCrate[CRATE_EXPLODE_DAMAGE][1] < 0.0 ) eCrate[CRATE_EXPLODE_DAMAGE][1] = g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE][1]
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_EXPLODE_DAMAGE], charsmax(eCrate[CRATE_EXPLODE_DAMAGE]), g_eSettings[SETTING_DEFAULT_EXPLODE_DAMAGE])
                         else if ( equali(szKey, "CRATE_EXPLODE_RADIUS") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ' ')
-                            eCrate[CRATE_EXPLODE_RADIUS][0] = str_to_float(szKey)
-                            eCrate[CRATE_EXPLODE_RADIUS][1] = str_to_float(szValue)
-
-                            if ( eCrate[CRATE_EXPLODE_RADIUS] < 0.0 )
-                                eCrate[CRATE_EXPLODE_RADIUS] = g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS]
-                        }
+                            parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_EXPLODE_RADIUS], charsmax(eCrate[CRATE_EXPLODE_RADIUS]), g_eSettings[SETTING_DEFAULT_EXPLODE_RADIUS])
                         else if ( equali(szKey, "CRATE_WEAPON_MODE") )
-                        {
-                            eCrate[CRATE_WEAPON_MODE] = str_to_num(szValue)
-                            eCrate[CRATE_WEAPON_MODE] = clamp(eCrate[CRATE_WEAPON_MODE], WEAPON_ALL, WEAPON_EXCEPT)
-                        }
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_WEAPON_MODE], charsmax(eCrate[CRATE_WEAPON_MODE]), g_eSettings[SETTING_DEFAULT_WEAPON_MODE])
                         else if ( equali(szKey, "CRATE_WEAPON_LIST") )
-                        {
-                            strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ',')
-                            trim(szKey)
-                            trim(szValue)
-
-                            while( szKey[0] )
-                            {
-                                iWeapon = str_to_num(szKey)
-
-                                if ( iWeapon >= 1 && iWeapon <= 30 )
-                                    eCrate[CRATE_WEAPON_LIST][iWeapon] = true
-
-                                strtok(szValue, szKey, charsmax(szKey), szValue, charsmax(szValue), ',')
-                                trim(szKey)
-                            }
-                        }
+                            parseSetting(DTYPE_VECTOR_LIST, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_WEAPON_LIST], charsmax(eCrate[CRATE_WEAPON_LIST]), g_eSettings[SETTING_DEFAULT_WEAPON_LIST])
                     }
                 }
             }
@@ -1199,9 +895,6 @@ public crateMenu(id, iType)
         case MENU_CREATE: { menuCreate(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_CREATE"); }
         case MENU_STATUS: { menuStatus(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_STATUS"); }
         case MENU_REMOVE: { menuRemove(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_REMOVE"); }
-        case MENU_SHOW:   { menuShow(id, iMenu);    format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_SHOW"); }
-        case MENU_TEAM:   { menuTeam(id, iMenu);    format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_TEAM"); }
-        case MENU_SPAWN:  { menuSpawn(id, iMenu);   format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_SPAWN"); }
         case MENU_ROTATE: { menuRotate(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_ROTATE"); }
     }
 
@@ -1251,17 +944,6 @@ public menuRoot(id, iMenu)
     menu_additem(iMenu, szItem)
 
     formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_GODMODE", id, get_user_godmode(id) ? "CRATE_ON" : "CRATE_OFF")
-    menu_additem(iMenu, szItem)
-
-    menu_addblank2(iMenu)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_SHOW")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_TEAM")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_SPAWN")
     menu_additem(iMenu, szItem)
 }
 
@@ -1325,45 +1007,6 @@ public menuHandlerRoot(id, menu, item)
         case ROOT_GODMODE:
         {
             crateGodMode(id)
-        }
-        case ROOT_SHOW:
-        {
-            if ( !g_iCrate )
-            {
-                client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_NO_CRATE")
-                crateSound(id, SOUND_MENU_REMOVE)
-            }
-            else
-            {
-                crateSound(id, SOUND_MENU_NAV)
-                crateMenu(id, MENU_SHOW)
-            }
-        }
-        case ROOT_TEAM:
-        {
-            if ( !g_iCrate )
-            {
-                client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_NO_CRATE")
-                crateSound(id, SOUND_MENU_REMOVE)
-            }
-            else
-            {
-                crateSound(id, SOUND_MENU_NAV)
-                crateMenu(id, MENU_TEAM)
-            }
-        }
-        case ROOT_SPAWN:
-        {
-            if ( !g_iCrate )
-            {
-                client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_NO_CRATE")
-                crateSound(id, SOUND_MENU_REMOVE)
-            }
-            else
-            {
-                crateSound(id, SOUND_MENU_NAV)
-                crateMenu(id, MENU_SPAWN)
-            }
         }
     }
 
@@ -1620,419 +1263,6 @@ public menuHandlerRemove(id, menu, item)
     return PLUGIN_HANDLED
 }
 
-public menuShow(id, iMenu)
-{
-    new szItem[64],
-        eCrate[CRATE]
-
-    menuNav(id, iMenu)
-    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SHOW_CURRENT",
-    g_szShowColor[eCrate[CRATE_SHOW]], eCrate[CRATE_NAME], id, g_szShow[eCrate[CRATE_SHOW]])
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SHOW_ALL_HIDE")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SHOW_ALL_SHOW")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SHOW_ALL_DEFAULT")
-    menu_additem(iMenu, szItem)
-
-    g_ePlayerData[id][PDATA_CRATE_ACTION] = true
-    eCrate[CRATE_FLAGS] |= FLAG_SELECT
-    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-}
-
-public menuHandlerShow(id, menu, item)
-{
-    new eCrate[CRATE], Float:fCurrentTime
-
-    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-    eCrate[CRATE_FLAGS] &= ~FLAG_SELECT
-    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-    fCurrentTime = get_gametime()
-
-    switch( item )
-    {
-        case SHOW_NEXT:
-        {
-            if ( g_ePlayerData[id][PDATA_CRATE_MENU] >= g_iCrate - 1 )
-                g_ePlayerData[id][PDATA_CRATE_MENU] = 0
-            else
-                g_ePlayerData[id][PDATA_CRATE_MENU] ++
-
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_SHOW)
-        }
-        case SHOW_BACK:
-        {
-            if ( g_ePlayerData[id][PDATA_CRATE_MENU] <= 0 )
-                g_ePlayerData[id][PDATA_CRATE_MENU] = g_iCrate - 1
-            else
-                g_ePlayerData[id][PDATA_CRATE_MENU] --
-
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_SHOW)
-        }
-        case SHOW_CURRENT:
-        {
-            if ( ++ eCrate[CRATE_SHOW] > SHOW_FORCE_SHOW )
-                eCrate[CRATE_SHOW] = SHOW_DEFAULT
-
-            if ( eCrate[CRATE_SHOW] == SHOW_FORCE_SHOW )
-                eCrate[CRATE_FLAGS] |= FLAG_SHOW
-            else if ( eCrate[CRATE_SHOW] == SHOW_FORCE_HIDE )
-                eCrate[CRATE_FLAGS] &= ~FLAG_SHOW
-            else if ( eCrate[CRATE_SHOW] == SHOW_DEFAULT
-            && eCrate[CRATE_SPAWN_MODE] == SPAWN_DELAY
-            && eCrate[CRATE_FLAGS] & FLAG_DEAD )
-                eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SHOW_CURRENT",
-            eCrate[CRATE_NAME], id, g_szShowChat[eCrate[CRATE_SHOW]])
-            crateState(eCrate, eCrate[CRATE_FLAGS] & FLAG_SHOW ? true : false, eCrate[CRATE_FLAGS] & FLAG_DEAD ? true : false)
-            ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_SHOW)
-        }
-        case SHOW_ALL_HIDE:
-        {
-            for ( new i = 0; i < g_iCrate; i ++ )
-            {
-                ArrayGetArray(g_aCrate, i, eCrate)
-                eCrate[CRATE_SHOW] = SHOW_FORCE_HIDE
-                eCrate[CRATE_FLAGS] &= ~FLAG_SHOW
-                crateState(eCrate, false, false)
-
-                ArraySetArray(g_aCrate, i, eCrate)
-            }
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SHOW_ALL_HIDDEN")
-
-            crateSound(id, SOUND_MENU_ALERT)
-            crateMenu(id, MENU_SHOW)
-        }
-        case SHOW_ALL_SHOW:
-        {
-            for ( new i = 0; i < g_iCrate; i ++ )
-            {
-                ArrayGetArray(g_aCrate, i, eCrate)
-                eCrate[CRATE_SHOW] = SHOW_FORCE_SHOW
-                eCrate[CRATE_FLAGS] |= FLAG_SHOW
-                crateState(eCrate, true, eCrate[CRATE_FLAGS] & FLAG_DEAD ? true : false)
-
-                ArraySetArray(g_aCrate, i, eCrate)
-            }
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SHOW_ALL_SHOWN")
-
-            crateSound(id, SOUND_MENU_ALERT)
-            crateMenu(id, MENU_SHOW)
-        }
-        case SHOW_ALL_DEFAULT:
-        {
-            for ( new i = 0; i < g_iCrate; i ++ )
-            {
-                ArrayGetArray(g_aCrate, i, eCrate)
-
-                eCrate[CRATE_SHOW] = SHOW_DEFAULT
-                if ( eCrate[CRATE_SPAWN_MODE] == SPAWN_DELAY
-                && eCrate[CRATE_FLAGS] & FLAG_DEAD )
-                    eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
-
-                ArraySetArray(g_aCrate, i, eCrate)
-            }
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SHOW_ALL_DEFAULT")
-
-            crateSound(id, SOUND_MENU_ALERT)
-            crateMenu(id, MENU_SHOW)
-        }
-        default:
-        {
-            g_ePlayerData[id][PDATA_CRATE_MENU] = 0
-            g_ePlayerData[id][PDATA_CRATE_ACTION] = false
-        }
-    }
-
-    menu_destroy(menu)
-    return PLUGIN_HANDLED
-}
-
-public menuTeam(id, iMenu)
-{
-    new szItem[64],
-        eCrate[CRATE]
-
-    menuNav(id, iMenu)
-    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_TEAM_CURRENT",
-    eCrate[CRATE_NAME], id, g_szTeam[eCrate[CRATE_TEAM]])
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_TEAM_ALL_NONE")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_TEAM_ALL_T")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_TEAM_ALL_CT")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_TEAM_ALL_BOTH")
-    menu_additem(iMenu, szItem)
-
-    g_ePlayerData[id][PDATA_CRATE_ACTION] = true
-    eCrate[CRATE_FLAGS] |= FLAG_SELECT
-    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-}
-
-public menuHandlerTeam(id, menu, item)
-{
-    new eCrate[CRATE]
-
-    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-    eCrate[CRATE_FLAGS] &= ~FLAG_SELECT
-    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-
-    switch( item )
-    {
-        case TEAM_NEXT:
-        {
-            if ( g_ePlayerData[id][PDATA_CRATE_MENU] >= g_iCrate - 1 )
-                g_ePlayerData[id][PDATA_CRATE_MENU] = 0
-            else
-                g_ePlayerData[id][PDATA_CRATE_MENU] ++
-
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_TEAM)
-        }
-        case TEAM_BACK:
-        {
-            if ( g_ePlayerData[id][PDATA_CRATE_MENU] <= 0 )
-                g_ePlayerData[id][PDATA_CRATE_MENU] = g_iCrate - 1
-            else
-                g_ePlayerData[id][PDATA_CRATE_MENU] --
-
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_TEAM)
-        }
-        case TEAM_CURRENT:
-        {
-            if ( ++ eCrate[CRATE_TEAM] > TEAM_BOTH )
-                eCrate[CRATE_TEAM] = TEAM_NONE
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_TEAM_CURRENT",
-            eCrate[CRATE_NAME], id, g_szTeamChat[eCrate[CRATE_TEAM]])
-            ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_TEAM)
-        }
-        case TEAM_ALL_NONE:
-        {
-            for ( new i = 0; i < g_iCrate; i ++ )
-            {
-                ArrayGetArray(g_aCrate, i, eCrate)
-                eCrate[CRATE_TEAM] = TEAM_NONE
-                ArraySetArray(g_aCrate, i, eCrate)
-            }
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_TEAM_ALL_NONE")
-
-            crateSound(id, SOUND_MENU_ALERT)
-            crateMenu(id, MENU_TEAM)
-        }
-        case TEAM_ALL_T:
-        {
-            for ( new i = 0; i < g_iCrate; i ++ )
-            {
-                ArrayGetArray(g_aCrate, i, eCrate)
-                eCrate[CRATE_TEAM] = TEAM_T
-                ArraySetArray(g_aCrate, i, eCrate)
-            }
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_TEAM_ALL_T")
-
-            crateSound(id, SOUND_MENU_ALERT)
-            crateMenu(id, MENU_TEAM)
-        }
-        case TEAM_ALL_CT:
-        {
-            for ( new i = 0; i < g_iCrate; i ++ )
-            {
-                ArrayGetArray(g_aCrate, i, eCrate)
-                eCrate[CRATE_TEAM] = TEAM_CT
-                ArraySetArray(g_aCrate, i, eCrate)
-            }
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_TEAM_ALL_CT")
-
-            crateSound(id, SOUND_MENU_ALERT)
-            crateMenu(id, MENU_TEAM)
-        }
-        case TEAM_ALL_BOTH:
-        {
-            for ( new i = 0; i < g_iCrate; i ++ )
-            {
-                ArrayGetArray(g_aCrate, i, eCrate)
-                eCrate[CRATE_TEAM] = TEAM_BOTH
-                ArraySetArray(g_aCrate, i, eCrate)
-            }
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_TEAM_ALL_BOTH")
-
-            crateSound(id, SOUND_MENU_ALERT)
-            crateMenu(id, MENU_TEAM)
-        }
-        default:
-        {
-            g_ePlayerData[id][PDATA_CRATE_MENU] = 0
-            g_ePlayerData[id][PDATA_CRATE_ACTION] = false
-        }
-    }
-
-    menu_destroy(menu)
-    return PLUGIN_HANDLED
-}
-
-public menuSpawn(id, iMenu)
-{
-    new szItem[64],
-        eCrate[CRATE]
-
-    menuNav(id, iMenu)
-    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SPAWN_CURRENT",
-    eCrate[CRATE_NAME], id, g_szSpawn[eCrate[CRATE_SPAWN_MODE]])
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SPAWN_ALL_NEVER")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SPAWN_ALL_DELAY")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SPAWN_ALL_ROUND_START")
-    menu_additem(iMenu, szItem)
-
-    g_ePlayerData[id][PDATA_CRATE_ACTION] = true
-    eCrate[CRATE_FLAGS] |= FLAG_SELECT
-    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-}
-
-public menuHandlerSpawn(id, menu, item)
-{
-    new eCrate[CRATE], Float:fCurrentTime
-
-    ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-    eCrate[CRATE_FLAGS] &= ~FLAG_SELECT
-    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-    fCurrentTime = get_gametime()
-
-    switch( item )
-    {
-        case SPAWN_NEXT:
-        {
-            if ( g_ePlayerData[id][PDATA_CRATE_MENU] >= g_iCrate - 1 )
-                g_ePlayerData[id][PDATA_CRATE_MENU] = 0
-            else
-                g_ePlayerData[id][PDATA_CRATE_MENU] ++
-
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_SPAWN)
-        }
-        case SPAWN_BACK:
-        {
-            if ( g_ePlayerData[id][PDATA_CRATE_MENU] <= 0 )
-                g_ePlayerData[id][PDATA_CRATE_MENU] = g_iCrate - 1
-            else
-                g_ePlayerData[id][PDATA_CRATE_MENU] --
-
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_SPAWN)
-        }
-        case SPAWN_CURRENT:
-        {
-            if ( ++ eCrate[CRATE_SPAWN_MODE] > SPAWN_ROUND_START )
-                eCrate[CRATE_SPAWN_MODE] = SPAWN_NEVER
-
-            if ( eCrate[CRATE_SHOW] == SHOW_DEFAULT
-            && eCrate[CRATE_SPAWN_MODE] == SPAWN_DELAY
-            && eCrate[CRATE_FLAGS] & FLAG_DEAD )
-                eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SPAWN_CURRENT",
-            eCrate[CRATE_NAME], id, g_szSpawnChat[eCrate[CRATE_SPAWN_MODE]])
-            ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_SPAWN)
-        }
-        case SPAWN_ALL_NEVER:
-        {
-            for ( new i = 0; i < g_iCrate; i ++ )
-            {
-                ArrayGetArray(g_aCrate, i, eCrate)
-                eCrate[CRATE_SPAWN_MODE] = SPAWN_NEVER
-                ArraySetArray(g_aCrate, i, eCrate)
-            }
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SPAWN_ALL_NEVER")
-
-            crateSound(id, SOUND_MENU_ALERT)
-            crateMenu(id, MENU_SPAWN)
-        }
-        case SPAWN_ALL_DELAY:
-        {
-            for ( new i = 0; i < g_iCrate; i ++ )
-            {
-                ArrayGetArray(g_aCrate, i, eCrate)
-
-                eCrate[CRATE_SPAWN_MODE] = SPAWN_DELAY
-                if ( eCrate[CRATE_SHOW] == SHOW_DEFAULT
-                && eCrate[CRATE_FLAGS] & FLAG_DEAD )
-                    eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
-
-                ArraySetArray(g_aCrate, i, eCrate)
-            }
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SPAWN_ALL_DELAY")
-
-            crateSound(id, SOUND_MENU_ALERT)
-            crateMenu(id, MENU_SPAWN)
-        }
-        case SPAWN_ALL_ROUND_START:
-        {
-            for ( new i = 0; i < g_iCrate; i ++ )
-            {
-                ArrayGetArray(g_aCrate, i, eCrate)
-                eCrate[CRATE_SPAWN_MODE] = SPAWN_ROUND_START
-                ArraySetArray(g_aCrate, i, eCrate)
-            }
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SPAWN_ALL_ROUND_START")
-
-            crateSound(id, SOUND_MENU_ALERT)
-            crateMenu(id, MENU_SPAWN)
-        }
-        default:
-        {
-            g_ePlayerData[id][PDATA_CRATE_MENU] = 0
-            g_ePlayerData[id][PDATA_CRATE_ACTION] = false
-        }
-    }
-
-    menu_destroy(menu)
-    return PLUGIN_HANDLED
-}
-
 public menuRotate(id, iMenu)
 {
     new szItem[64]
@@ -2130,7 +1360,8 @@ public crateTask()
 
     for ( new id = 1; id <= g_iMaxPlayers; id ++ )
     {
-        if ( !g_ePlayerData[id][PDATA_CRATE_GHOST]
+        if ( !is_user_alive(id)
+        || !g_ePlayerData[id][PDATA_CRATE_GHOST]
         || (iItem = crateGet(eCrate, g_ePlayerData[id][PDATA_CRATE_GHOST])) == -1 )
             continue
 
@@ -2154,7 +1385,7 @@ public crateTask()
 
                     bModified = true
                 }
-            
+
                 if ( eCrate[CRATE_NEXT_DISABLE] > 0.0
                 && fCurrentTime >= eCrate[CRATE_NEXT_DISABLE] )
                 {
@@ -2165,7 +1396,7 @@ public crateTask()
                     crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_IDLE, 1.0)
 
                     bModified = true
-                } 
+                }
             }
             else
             {
@@ -2192,7 +1423,7 @@ public crateTask()
                 }
             }
         }
-        else 
+        else
         {
             if ( eCrate[CRATE_FLAGS] & FLAG_DEAD
             && eCrate[CRATE_SHOW] == SHOW_DEFAULT
@@ -2300,17 +1531,8 @@ public saveData(id)
         formatex(szData, charsmax(szData), "status = %d^n", eCrate[CRATE_SHOW])
         fputs(iFile, szData)
 
-        formatex(szData, charsmax(szData), "show = %d^n", eCrate[CRATE_SHOW])
-        fputs(iFile, szData)
-
         eCrate[CRATE_FLAGS] &= ~(FLAG_GHOST | FLAG_SELECT | FLAG_VALID)
         formatex(szData, charsmax(szData), "flags = %d^n", eCrate[CRATE_FLAGS])
-        fputs(iFile, szData)
-
-        formatex(szData, charsmax(szData), "team = %d^n", eCrate[CRATE_TEAM])
-        fputs(iFile, szData)
-
-        formatex(szData, charsmax(szData), "spawn = %d^n", eCrate[CRATE_SPAWN_MODE])
         fputs(iFile, szData)
     }
 
@@ -2327,7 +1549,7 @@ stock loadData()
     new szFile[128], iFile,
         szData[64], szKey[32], szValue[32],
         Float:fOrigin[3], Float:fAngles[3], iItem,
-        iStatus, iShow, iFlags, iTeam, iSpawn, iCount = -1
+        iStatus, iFlags, iCount = -1
 
     get_mapname(szFile, charsmax(szFile))
     format(szFile, charsmax(szFile), "maps/%s_SupplyCrate.ini", szFile)
@@ -2347,7 +1569,7 @@ stock loadData()
         {
             if ( iCount != -1 )
             {
-                loadDataCrate(fOrigin, fAngles, iStatus, iShow, iFlags, iTeam, iSpawn, iItem, iCount)
+                loadDataCrate(fOrigin, fAngles, iStatus, iFlags, iItem, iCount)
             }
 
             iCount ++
@@ -2384,33 +1606,21 @@ stock loadData()
             {
                 iStatus = str_to_num(szValue)
             }
-            else if ( equal(szKey, "show") )
-            {
-                iShow = str_to_num(szValue)
-            }
             else if ( equal(szKey, "flags") )
             {
                 iFlags = str_to_num(szValue)
-            }
-            else if ( equal(szKey, "team") )
-            {
-                iTeam = str_to_num(szValue)
-            }
-            else if ( equal(szKey, "spawn") )
-            {
-                iSpawn = str_to_num(szValue)
             }
         }
     }
 
     if ( iCount != -1 )
-        loadDataCrate(fOrigin, fAngles, iStatus, iShow, iFlags, iTeam, iSpawn, iItem, iCount)
+        loadDataCrate(fOrigin, fAngles, iStatus, iFlags, iItem, iCount)
 
     fclose(iFile)
     return PLUGIN_HANDLED
 }
 
-stock loadDataCrate(Float:fOrigin[3], Float:fAngles[3], iStatus, iShow, iFlags, iTeam, iSpawnMode, iItem, iCount)
+stock loadDataCrate(Float:fOrigin[3], Float:fAngles[3], iStatus, iFlags, iItem, iCount)
 {
     new eCrate[CRATE], Float:fCurrentTime
 
@@ -2425,10 +1635,7 @@ stock loadDataCrate(Float:fOrigin[3], Float:fAngles[3], iStatus, iShow, iFlags, 
 
     eCrate[CRATE_NEXT_USE]      = fCurrentTime + 0.25
     eCrate[CRATE_STATUS]        = iStatus
-    eCrate[CRATE_SHOW]          = iShow
     eCrate[CRATE_FLAGS]         = iFlags
-    eCrate[CRATE_TEAM]          = iTeam
-    eCrate[CRATE_SPAWN_MODE]    = iSpawnMode
     eCrate[CRATE_FRAMERATE]     = (2.15 + (eCrate[CRATE_COOLDOWN] - 0.5) / (40.0 - 0.5) * (3.25 - 2.15)) / eCrate[CRATE_COOLDOWN]
 
     if ( eCrate[CRATE_SHOW] == SHOW_DEFAULT
@@ -2984,7 +2191,7 @@ stock crateSetSolid(eCrate[CRATE])
     engfunc(EngFunc_SetSize, eCrate[CRATE_ID], fMins, fMaxs)
     set_rendering(eCrate[CRATE_ID], kRenderFxNone, 255, 255, 255, kRenderNormal, 255)
 }
- 
+
 stock crateSetSeq(iEnt, iSequence, Float:fFrameRate = 1.0)
 {
     set_pev(iEnt, pev_sequence, iSequence)
@@ -3282,6 +2489,105 @@ stock crateKill(iEnt)
         set_pev(iEnt, pev_flags, pev(iEnt, pev_flags) | FL_KILLME)
 }
 
+
+
+stock parseSetting(iType, szKey[], iKeyLen, szValue[], iValueLen, any:output[], iOutputLen, const any:fallback[] = {0.0, 0.0})
+{
+    switch ( iType )
+    {
+        case DTYPE_FLOAT_RANGE:
+        {
+            strtok(szValue, szKey, iKeyLen, szValue, iValueLen, ' ')
+            output[0] = str_to_float(szKey)
+            output[1] = str_to_float(szValue)
+
+            if ( output[0] < 0.0 ) output[0] = fallback[0]
+            if ( output[1] < 0.0 ) output[1] = fallback[1]
+        }
+        case DTYPE_FLOAT:
+        {
+            output[0] = str_to_float(szValue)
+            if ( output[0] < 0.0 ) output[0] = fallback[0]
+        }
+        case DTYPE_INT_RANGE:
+        {
+            strtok(szValue, szKey, iKeyLen, szValue, iValueLen, ' ')
+            output[0] = str_to_num(szKey)
+            output[1] = str_to_num(szValue)
+
+            if ( output[0] < 0 ) output[0] = fallback[0]
+            if ( output[1] < 0 ) output[1] = fallback[1]
+        }
+        case DTYPE_INT:
+        {
+            output[0] = str_to_num(szValue)
+            if ( output[0] < 0 ) output[0] = fallback[0]
+        }
+        case DTYPE_BOOL:
+        {
+            output[0] = bool:str_to_num(szValue)
+        }
+        case DTYPE_FLAGS:
+        {
+            output[0] = read_flags(szValue)
+        }
+        case DTYPE_VECTOR:
+        {
+            strtok(szValue, szKey, iKeyLen, szValue, iValueLen, ' ')
+            output[0] = str_to_num(szKey)
+
+            strtok(szValue, szKey, iKeyLen, szValue, iValueLen, ' ')
+            output[1] = str_to_num(szKey)
+            output[2] = str_to_num(szValue)
+        }
+        case DTYPE_VECTOR_FLOAT:
+        {
+            strtok(szValue, szKey, iKeyLen, szValue, iValueLen, ' ')
+            output[0] = str_to_float(szKey)
+
+            strtok(szValue, szKey, iKeyLen, szValue, iValueLen, ' ')
+            output[1] = str_to_float(szKey)
+            output[2] = str_to_float(szValue)
+        }
+        case DTYPE_VECTOR_LIST:
+        {
+            new szTok[MAX_VALUE_LENGTH], szTmp[MAX_VALUE_LENGTH]
+            copy(szTmp, charsmax(szTmp), szValue)
+            strtok(szTmp, szTok, charsmax(szTok), szTmp, charsmax(szTmp), ',')
+            trim(szTok)
+            while ( szTok[0] )
+            {
+                new iNum = str_to_num(szTok)
+                if ( iNum >= 1 && iNum <= 30 )
+                    output[iNum] = true
+
+                strtok(szTmp, szTok, charsmax(szTok), szTmp, charsmax(szTmp), ',')
+                trim(szTok)
+            }
+        }
+        case DTYPE_ARRAY_SOUND:
+        {
+            ArrayPushString(output[0], szValue)
+            if ( !g_bFileWasRead ) precache_sound(szValue)
+        }
+        case DTYPE_STRING_MODEL:
+        {
+            copy(output, iOutputLen, szValue)
+            if ( !g_bFileWasRead ) precache_model(szValue)
+        }
+        case DTYPE_STRING_SOUND:
+        {
+            copy(output, iOutputLen, szValue)
+            if ( !g_bFileWasRead ) precache_sound(szValue)
+        }
+        case DTYPE_STRING_SPRITE:
+        {
+            if ( !g_bFileWasRead )
+                output[0] = precache_model(szValue)
+        }
+    }
+}
+
 stock LogConfigError(const iLine, const szText[], any:...)
 {
     new szError[MAX_PLATFORM_PATH_LENGTH]
@@ -3289,6 +2595,3 @@ stock LogConfigError(const iLine, const szText[], any:...)
 
     log_to_file(ERROR_FILE, "^nLine %d: %s", iLine, szError)
 }
-
-
-
