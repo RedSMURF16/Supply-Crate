@@ -2,7 +2,6 @@
 CRATE_CHAT_TAG                      = ^4[SUPPLY CRATE]^1
 CRATE_CHAT_LIMIT                    = You've reached the maximum number of Crates ^4%d
 CRATE_CHAT_NO_CRATE                 = There are no Crates available
-CRATE_CHAT_NO_DATA                  = Crate data hasn't been found
 CRATE_CHAT_CREATE_NEW               = ^3%s ^1created
 CRATE_CHAT_STATUS_CURRENT           = ^3%s ^1is %L
 CRATE_CHAT_STATUS_ALL_ENABLED       = All Crates are now enabled

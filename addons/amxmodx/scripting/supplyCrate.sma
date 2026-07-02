@@ -29,7 +29,7 @@
 *             Crates can break or explode from damage,
 *             CRATE_FACTOR is used with AMMO CRATES to scale the supplied ammo.
 *       v2.1: Added team-restricted crates (T, CT, Both or Disabled),
-*             Added respawn chance machanics for destroyed crates,
+*             Added reCrate chance machanics for destroyed crates,
 *             Improved rendering logic
 *       v2.2: Switched CRATE_MODE to Bitflags for cleaner multi-option support
 *             CRATE_FACTOR is now used by grenades crates for scaling
@@ -168,9 +168,9 @@ enum
 
 enum
 {
-    SPAWN_NEVER,
-    SPAWN_DELAY,
-    SPAWN_ROUND_START
+    CRATE_NEVER,
+    CRATE_DELAY,
+    CRATE_ROUND_START
 }
 
 enum
@@ -193,9 +193,9 @@ enum _:MAIN_SETTINGS
     Float:SETTING_DEFAULT_COOLDOWN,
     Float:SETTING_DEFAULT_CAPACITY,
 
-    SETTING_DEFAULT_SPAWN_MODE,
+    SETTING_DEFAULT_CRATE_MODE,
     Float:SETTING_DEFAULT_SPAWN[2],
-    Float:SETTING_DEFAULT_SPAWN_CHANCE,
+    Float:SETTING_DEFAULT_CRATE_CHANCE,
 
     Float:SETTING_DEFAULT_ACTIVE_DELAY[2],
     Float:SETTING_DEFAULT_ACTIVE_DURATION[2],
@@ -265,9 +265,9 @@ enum _:CRATE
     Float:CRATE_FRAMERATE,
     Float:CRATE_CAPACITY_MAX,
 
-    CRATE_SPAWN_MODE,
+    CRATE_CRATE_MODE,
     Float:CRATE_SPAWN[2],
-    Float:CRATE_SPAWN_CHANCE,
+    Float:CRATE_CRATE_CHANCE,
     Float:CRATE_NEXT_SPAWN,
 
     Float:CRATE_ACTIVE_DELAY[2],
@@ -532,13 +532,13 @@ public eventRoundStart()
         crateReset(eCrate)
 
         if ( eCrate[CRATE_SHOW] != SHOW_DEFAULT
-        || eCrate[CRATE_SPAWN_MODE] != SPAWN_ROUND_START )
+        || eCrate[CRATE_CRATE_MODE] != CRATE_ROUND_START )
         {
             ArraySetArray(g_aCrate, i, eCrate)
             continue
         }
 
-        if ( eCrate[CRATE_SPAWN_CHANCE] >= random_float(0.0, 1.0) )
+        if ( eCrate[CRATE_CRATE_CHANCE] >= random_float(0.0, 1.0) )
         {
             eCrate[CRATE_FLAGS] |= (FLAG_SHOW | FLAG_ACTIVE)
             crateState(eCrate, true, true)
@@ -627,10 +627,10 @@ stock ReadFile()
                         eCrate[CRATE_CAPACITY]              = g_eSettings[SETTING_DEFAULT_CAPACITY]
                         eCrate[CRATE_FRAMERATE]             = (2.15 + (eCrate[CRATE_COOLDOWN] - 0.5) / (40.0 - 0.5) * (3.25 - 2.15)) / eCrate[CRATE_COOLDOWN]
 
-                        eCrate[CRATE_SPAWN_MODE]            = g_eSettings[SETTING_DEFAULT_SPAWN_MODE]
+                        eCrate[CRATE_CRATE_MODE]            = g_eSettings[SETTING_DEFAULT_CRATE_MODE]
                         eCrate[CRATE_SPAWN][0]              = g_eSettings[SETTING_DEFAULT_SPAWN][0]
                         eCrate[CRATE_SPAWN][1]              = g_eSettings[SETTING_DEFAULT_SPAWN][1]
-                        eCrate[CRATE_SPAWN_CHANCE]          = g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE]
+                        eCrate[CRATE_CRATE_CHANCE]          = g_eSettings[SETTING_DEFAULT_CRATE_CHANCE]
 
                         eCrate[CRATE_ACTIVE_DELAY][0]       = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][0]
                         eCrate[CRATE_ACTIVE_DELAY][1]       = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][1]
@@ -700,12 +700,12 @@ stock ReadFile()
                             parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_COOLDOWN], charsmax(g_eSettings[SETTING_DEFAULT_COOLDOWN]))
                         else if ( equali(szKey, "SETTING_DEFAULT_CAPACITY") )
                             parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_CAPACITY], charsmax(g_eSettings[SETTING_DEFAULT_CAPACITY]))
-                        else if ( equali(szKey, "SETTING_DEFAULT_SPAWN_MODE") )
-                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_SPAWN_MODE], charsmax(g_eSettings[SETTING_DEFAULT_SPAWN_MODE]))
+                        else if ( equali(szKey, "SETTING_DEFAULT_CRATE_MODE") )
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_CRATE_MODE], charsmax(g_eSettings[SETTING_DEFAULT_CRATE_MODE]))
                         else if ( equali(szKey, "SETTING_DEFAULT_SPAWN") )
                             parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_SPAWN], charsmax(g_eSettings[SETTING_DEFAULT_SPAWN]))
-                        else if ( equali(szKey, "SETTING_DEFAULT_SPAWN_CHANCE") )
-                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE], charsmax(g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE]))
+                        else if ( equali(szKey, "SETTING_DEFAULT_CRATE_CHANCE") )
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_CRATE_CHANCE], charsmax(g_eSettings[SETTING_DEFAULT_CRATE_CHANCE]))
                         else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_DELAY") )
                             parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY], charsmax(g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY]))
                         else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_DURATION") )
@@ -804,12 +804,12 @@ stock ReadFile()
                             parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_CAPACITY], charsmax(eCrate[CRATE_CAPACITY]), g_eSettings[SETTING_DEFAULT_CAPACITY])
                             eCrate[CRATE_CAPACITY_MAX] = eCrate[CRATE_CAPACITY]
                         }
-                        else if ( equali(szKey, "CRATE_SPAWN_MODE") )
-                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_SPAWN_MODE], charsmax(eCrate[CRATE_SPAWN_MODE]), g_eSettings[SETTING_DEFAULT_SPAWN_MODE])
+                        else if ( equali(szKey, "CRATE_CRATE_MODE") )
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_CRATE_MODE], charsmax(eCrate[CRATE_CRATE_MODE]), g_eSettings[SETTING_DEFAULT_CRATE_MODE])
                         else if ( equali(szKey, "CRATE_SPAWN") )
                             parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_SPAWN], charsmax(eCrate[CRATE_SPAWN]), g_eSettings[SETTING_DEFAULT_SPAWN])
-                        else if ( equali(szKey, "CRATE_SPAWN_CHANCE") )
-                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_SPAWN_CHANCE], charsmax(eCrate[CRATE_SPAWN_CHANCE]), g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE])
+                        else if ( equali(szKey, "CRATE_CRATE_CHANCE") )
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_CRATE_CHANCE], charsmax(eCrate[CRATE_CRATE_CHANCE]), g_eSettings[SETTING_DEFAULT_CRATE_CHANCE])
                         else if ( equali(szKey, "CRATE_ACTIVE_DELAY") )
                             parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_ACTIVE_DELAY], charsmax(eCrate[CRATE_ACTIVE_DELAY]), g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY])
                         else if ( equali(szKey, "CRATE_ACTIVE_DURATION") )
@@ -1360,12 +1360,18 @@ public crateTask()
 
     for ( new id = 1; id <= g_iMaxPlayers; id ++ )
     {
-        if ( !is_user_alive(id)
-        || !g_ePlayerData[id][PDATA_CRATE_GHOST]
-        || (iItem = crateGet(eCrate, g_ePlayerData[id][PDATA_CRATE_GHOST])) == -1 )
+        if ( !is_user_alive(id) )
             continue
 
-        crateTrace(eCrate, id, iItem)
+        if ( !g_ePlayerData[id][PDATA_CRATE_GHOST] )
+        {
+            if ( g_ePlayerData[id][PDATA_CRATE_ACTION] )
+                crateCheck(id)
+        }
+        else if ( (iItem = crateGet(eCrate, g_ePlayerData[id][PDATA_CRATE_GHOST])) != -1 )
+        {
+            crateTrace(eCrate, id, iItem)
+        }
     }
 
     for ( new i = 0; i < g_iCrate; i ++ )
@@ -1427,11 +1433,11 @@ public crateTask()
         {
             if ( eCrate[CRATE_FLAGS] & FLAG_DEAD
             && eCrate[CRATE_SHOW] == SHOW_DEFAULT
-            && eCrate[CRATE_SPAWN_MODE] == SPAWN_DELAY
+            && eCrate[CRATE_CRATE_MODE] == CRATE_DELAY
             && eCrate[CRATE_NEXT_SPAWN]
             && fCurrentTime >= eCrate[CRATE_NEXT_SPAWN] )
             {
-                if ( eCrate[CRATE_SPAWN_CHANCE] >= random_float(0.0, 1.0) )
+                if ( eCrate[CRATE_CRATE_CHANCE] >= random_float(0.0, 1.0) )
                 {
                     eCrate[CRATE_FLAGS] |= FLAG_SHOW
                     eCrate[CRATE_NEXT_SPAWN] = 0.0
@@ -1556,10 +1562,7 @@ stock loadData()
 
     iFile = fopen(szFile, "rt")
     if ( !iFile )
-    {
-        console_print(0, "%L %L", 0, "CRATE_CHAT_TAG", 0, "CRATE_CHAT_NO_DATA")
         return PLUGIN_HANDLED
-    }
 
     while( !feof(iFile) )
     {
@@ -1639,7 +1642,7 @@ stock loadDataCrate(Float:fOrigin[3], Float:fAngles[3], iStatus, iFlags, iItem, 
     eCrate[CRATE_FRAMERATE]     = (2.15 + (eCrate[CRATE_COOLDOWN] - 0.5) / (40.0 - 0.5) * (3.25 - 2.15)) / eCrate[CRATE_COOLDOWN]
 
     if ( eCrate[CRATE_SHOW] == SHOW_DEFAULT
-    && eCrate[CRATE_SPAWN_MODE] == SPAWN_DELAY
+    && eCrate[CRATE_CRATE_MODE] == CRATE_DELAY
     && eCrate[CRATE_FLAGS] & FLAG_DEAD )
         eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
 
@@ -1757,7 +1760,7 @@ public fwdTakeDamage(iEnt, iInflictor, iAttacker, Float:fDamage, iDamageBits)
 
         crateGib(eCrate[CRATE_ID])
         if ( eCrate[CRATE_SHOW] == SHOW_DEFAULT
-        && eCrate[CRATE_SPAWN_MODE] == SPAWN_DELAY )
+        && eCrate[CRATE_CRATE_MODE] == CRATE_DELAY )
             eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
 
         if ( eCrate[CRATE_FLAGS] & FLAG_EXPLODE )
@@ -1888,6 +1891,64 @@ stock bool:crateTrace(eCrate[CRATE], id, iItem)
     set_pev(eCrate[CRATE_ID], pev_origin, eCrate[CRATE_ORIGIN])
 
     return crateStuck(eCrate, iItem)
+}
+
+stock crateCheck(id)
+{
+    new eCrate[CRATE], Float:fVec1[3], Float:fVec2[3], Float:fForward[3]
+    new iBest, Float:fBestDist, Float:fTraceLength, Float:fDot, Float:fDist
+
+    pev(id, pev_origin, fVec1)
+    pev(id, pev_view_ofs, fVec2)
+    xs_vec_add(fVec1, fVec2, fVec1)
+
+    pev(id, pev_v_angle, fForward)
+    engfunc(EngFunc_MakeVectors, fForward)
+    global_get(glb_v_forward, fForward)
+
+    xs_vec_mul_scalar(fForward, 9999.9, fVec2)
+    xs_vec_add(fVec2, fVec1, fVec2)
+
+    engfunc(EngFunc_TraceLine, fVec1, fVec2, DONT_IGNORE_MONSTERS, id, 0)
+    get_tr2(0, TR_vecEndPos, fVec2)
+
+    iBest = -1
+    fBestDist = 20.0
+    fTraceLength = get_distance_f(fVec1, fVec2)
+
+    for ( new i = 0; i < g_iCrate; i ++ )
+    {
+        ArrayGetArray(g_aCrate, i, eCrate)
+        xs_vec_sub(eCrate[CRATE_ORIGIN], fVec1, fVec2)
+        fDot = xs_vec_dot(fVec2, fForward)
+
+        if ( fDot < 0.0 || fDot > fTraceLength )
+            continue
+
+        xs_vec_copy(fForward, fVec2)
+        xs_vec_mul_scalar(fVec2, fDot, fVec2)
+        xs_vec_add(fVec2, fVec1, fVec2)
+
+        fDist = get_distance_f(eCrate[CRATE_ORIGIN], fVec2)
+        if ( fDist < fBestDist )
+        {
+            fBestDist = fDist
+            iBest = i
+        }
+    }
+
+    if ( iBest != -1
+    && g_ePlayerData[id][PDATA_CRATE_MENU] != iBest )
+    {
+        ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+        eCrate[CRATE_FLAGS] &= ~FLAG_SELECT
+        ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+
+        ArrayGetArray(g_aCrate, iBest, eCrate)
+        eCrate[CRATE_FLAGS] |= FLAG_SELECT
+        ArraySetArray(g_aCrate, iBest, eCrate)
+        g_ePlayerData[id][PDATA_CRATE_MENU] = iBest
+    }
 }
 
 stock crateUse(id)
