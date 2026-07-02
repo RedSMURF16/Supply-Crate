@@ -215,11 +215,10 @@ enum _:MAIN_SETTINGS
 
     bool:SETTING_CRATE_LOAD,
     Float:SETTING_CRATE_RANGE,
+    Float:SETTING_CRATE_CHECK,
     Float:SETTING_OFFSET_BASE,
     Float:SETTING_OFFSET[2],
     Float:SETTING_OFFSET_STEP,
-    Float:SETTING_OFFSET_FREQ,
-    Float:SETTING_GHOST_FREQ,
     SETTING_GHOST_ALPHA,
 
     Float:SETTING_BREAK_VELO_Z[2],
@@ -449,7 +448,7 @@ public plugin_init()
     g_iAmmoPickup = get_user_msgid("AmmoPickup")
     g_iWeapPickup = get_user_msgid("WeapPickup")
 
-    set_task(g_eSettings[SETTING_GHOST_FREQ], "crateTask", .flags = "b")
+    set_task(0.1, "crateTask", .flags = "b")
 
     crateInit()
     g_iMaxPlayers = get_maxplayers()
@@ -736,14 +735,14 @@ stock ReadFile()
                             parseSetting(DTYPE_BOOL, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_CRATE_LOAD], charsmax(g_eSettings[SETTING_CRATE_LOAD]))
                         else if ( equali(szKey, "SETTING_CRATE_RANGE") )
                             parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_CRATE_RANGE], charsmax(g_eSettings[SETTING_CRATE_RANGE]))
+                        else if ( equali(szKey, "SETTING_CRATE_CHECK") )
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_CRATE_CHECK], charsmax(g_eSettings[SETTING_CRATE_CHECK]))
                         else if ( equali(szKey, "SETTING_OFFSET_BASE") )
                             parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_OFFSET_BASE], charsmax(g_eSettings[SETTING_OFFSET_BASE]))
                         else if ( equali(szKey, "SETTING_OFFSET") )
                             parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_OFFSET], charsmax(g_eSettings[SETTING_OFFSET]))
                         else if ( equali(szKey, "SETTING_OFFSET_STEP") )
                             parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_OFFSET_STEP], charsmax(g_eSettings[SETTING_OFFSET_STEP]))
-                        else if ( equali(szKey, "SETTING_OFFSET_FREQ") )
-                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_OFFSET_FREQ], charsmax(g_eSettings[SETTING_OFFSET_FREQ]))
                         else if ( equali(szKey, "SETTING_GHOST_ALPHA") )
                             parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_GHOST_ALPHA], charsmax(g_eSettings[SETTING_GHOST_ALPHA]))
                         else if ( equali(szKey, "SETTING_BREAK_VELO_Z") )
@@ -756,8 +755,6 @@ stock ReadFile()
                             parseSetting(DTYPE_INT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_BREAK_LIFE], charsmax(g_eSettings[SETTING_BREAK_LIFE]))
                         else if ( equali(szKey, "SETTING_SPRITE_ZEROGXPLODE") )
                             parseSetting(DTYPE_STRING_SPRITE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SPRITE_ZEROGXPLODE], charsmax(g_eSettings[SETTING_SPRITE_ZEROGXPLODE]))
-                        else if ( equali(szKey, "SETTING_GHOST_FREQ") )
-                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_GHOST_FREQ], charsmax(g_eSettings[SETTING_GHOST_FREQ]))
                         else if ( equali(szKey, "SETTING_SOUND_BUTTON4") )
                             parseSetting(DTYPE_STRING_SOUND, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_SOUND_BUTTON4], charsmax(g_eSettings[SETTING_SOUND_BUTTON4]))
                         else if ( equali(szKey, "SETTING_SOUND_LOCKED") )
@@ -1811,13 +1808,13 @@ public fwdPreThink(id)
             {
                 g_ePlayerData[id][PDATA_OFFSET]      += g_eSettings[SETTING_OFFSET_STEP]
                 g_ePlayerData[id][PDATA_OFFSET]      = floatclamp(g_ePlayerData[id][PDATA_OFFSET], g_eSettings[SETTING_OFFSET][0], g_eSettings[SETTING_OFFSET][1])
-                g_ePlayerData[id][PDATA_NEXT_OFFSET] = fCurrentTime + g_eSettings[SETTING_OFFSET_FREQ]
+                g_ePlayerData[id][PDATA_NEXT_OFFSET] = fCurrentTime + 0.1
             }
             else if ( iButton & IN_ATTACK2 )
             {
                 g_ePlayerData[id][PDATA_OFFSET]      -= g_eSettings[SETTING_OFFSET_STEP]
                 g_ePlayerData[id][PDATA_OFFSET]      = floatclamp(g_ePlayerData[id][PDATA_OFFSET], g_eSettings[SETTING_OFFSET][0], g_eSettings[SETTING_OFFSET][1])
-                g_ePlayerData[id][PDATA_NEXT_OFFSET] = fCurrentTime + g_eSettings[SETTING_OFFSET_FREQ]
+                g_ePlayerData[id][PDATA_NEXT_OFFSET] = fCurrentTime + 0.1
             }
         }
 
@@ -1895,41 +1892,37 @@ stock bool:crateTrace(eCrate[CRATE], id, iItem)
 
 stock crateCheck(id)
 {
-    new eCrate[CRATE], Float:fVec1[3], Float:fVec2[3], Float:fForward[3]
-    new iBest, Float:fBestDist, Float:fTraceLength, Float:fDot, Float:fDist
+    new eCrate[CRATE], Float:fVec1[3], Float:fVec2[3], Float:fVec3[3], Float:fMins[3], Float:fMaxs[3], Float:fNearest[3]
+    new iBest, Float:fBestDist, Float:fDot, Float:fDist
 
     pev(id, pev_origin, fVec1)
     pev(id, pev_view_ofs, fVec2)
     xs_vec_add(fVec1, fVec2, fVec1)
 
-    pev(id, pev_v_angle, fForward)
-    engfunc(EngFunc_MakeVectors, fForward)
-    global_get(glb_v_forward, fForward)
-
-    xs_vec_mul_scalar(fForward, 9999.9, fVec2)
-    xs_vec_add(fVec2, fVec1, fVec2)
-
-    engfunc(EngFunc_TraceLine, fVec1, fVec2, DONT_IGNORE_MONSTERS, id, 0)
-    get_tr2(0, TR_vecEndPos, fVec2)
+    pev(id, pev_v_angle, fVec2)
+    engfunc(EngFunc_MakeVectors, fVec2)
+    global_get(glb_v_forward, fVec2)
 
     iBest = -1
-    fBestDist = 20.0
-    fTraceLength = get_distance_f(fVec1, fVec2)
-
+    fBestDist = g_eSettings[SETTING_CRATE_CHECK]
     for ( new i = 0; i < g_iCrate; i ++ )
     {
         ArrayGetArray(g_aCrate, i, eCrate)
-        xs_vec_sub(eCrate[CRATE_ORIGIN], fVec1, fVec2)
-        fDot = xs_vec_dot(fVec2, fForward)
+        xs_vec_sub(eCrate[CRATE_ORIGIN], fVec1, fVec3)
+        fDot = xs_vec_dot(fVec2, fVec3)
 
-        if ( fDot < 0.0 || fDot > fTraceLength )
+        if ( fDot < 0.0 )
             continue
 
-        xs_vec_copy(fForward, fVec2)
-        xs_vec_mul_scalar(fVec2, fDot, fVec2)
-        xs_vec_add(fVec2, fVec1, fVec2)
+        pev(eCrate[CRATE_ID], pev_absmin, fMins)
+        pev(eCrate[CRATE_ID], pev_absmax, fMaxs)
+        xs_vec_mul_scalar(fVec2, fDot, fVec3)
+        xs_vec_add(fVec3, fVec1, fVec3)
 
-        fDist = get_distance_f(eCrate[CRATE_ORIGIN], fVec2)
+        fNearest[0] = floatclamp(fVec3[0], fMins[0], fMaxs[0])
+        fNearest[1] = floatclamp(fVec3[1], fMins[1], fMaxs[1])
+        fNearest[2] = floatclamp(fVec3[2], fMins[2], fMaxs[2])
+        fDist = get_distance_f(fVec3, fNearest)
         if ( fDist < fBestDist )
         {
             fBestDist = fDist
