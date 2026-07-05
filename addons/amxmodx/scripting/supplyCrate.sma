@@ -139,9 +139,9 @@ enum
     FLAG_SHOW               = (1 << 5),
     FLAG_DEAD               = (1 << 6),
     FLAG_GHOST              = (1 << 7),
-    FLAG_VALID              = (1 << 8),
-    FLAG_SELECT             = (1 << 9),
-    FLAG_ACTIVE             = (1 << 10)
+    FLAG_SELECT             = (1 << 8),
+    FLAG_ACTIVE             = (1 << 9),
+    FLAG_GROUND             = (1 << 10)
 }
 
 enum
@@ -364,6 +364,8 @@ enum
 {
     ROTATE_RIGHT,
     ROTATE_LEFT,
+
+    ROTATE_GROUND = 3,
     ROTATE_PLACE
 }
 
@@ -1262,12 +1264,23 @@ public menuHandlerRemove(id, menu, item)
 
 public menuRotate(id, iMenu)
 {
-    new szItem[64]
+    new szItem[64], eCrate[CRATE]
+    if ( crateGet(eCrate, g_ePlayerData[id][PDATA_CRATE_GHOST]) == -1 )
+    {
+        menu_destroy(iMenu)
+        return
+    }
 
     formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROTATE_RIGHT")
     menu_additem(iMenu, szItem)
 
     formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROTATE_LEFT")
+    menu_additem(iMenu, szItem)
+
+    menu_addblank2(iMenu)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROTATE_GROUND",
+    id, eCrate[CRATE_FLAGS] & FLAG_GROUND ? "CRATE_ON" : "CRATE_OFF")
     menu_additem(iMenu, szItem)
 
     formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROTATE_PLACE")
@@ -1312,30 +1325,30 @@ public menuHandlerRotate(id, menu, item)
             crateSound(id, SOUND_MENU_NAV)
             crateMenu(id, MENU_ROTATE)
         }
+        case ROTATE_GROUND:
+        {
+            eCrate[CRATE_FLAGS] ^= FLAG_GROUND
+            ArraySetArray(g_aCrate, iItem, eCrate)
+
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_ROTATE)
+        }
         case ROTATE_PLACE:
         {
-            if ( crateTrace(eCrate, id, iItem) )
-            {
-                g_ePlayerData[id][PDATA_CRATE_GHOST] = 0
-                g_ePlayerData[id][PDATA_CRATE_ACTION] = false
+            crateTrace(eCrate, id)
+            g_ePlayerData[id][PDATA_CRATE_GHOST] = 0
+            g_ePlayerData[id][PDATA_CRATE_ACTION] = false
 
-                eCrate[CRATE_NEXT_USE] = fCurrentTime + 0.25
-                eCrate[CRATE_FLAGS] |= (FLAG_SHOW | FLAG_ACTIVE)
-                eCrate[CRATE_FLAGS] &= ~FLAG_GHOST
+            eCrate[CRATE_NEXT_USE] = fCurrentTime + 0.25
+            eCrate[CRATE_FLAGS] |= (FLAG_SHOW | FLAG_ACTIVE)
+            eCrate[CRATE_FLAGS] &= ~FLAG_GHOST
+            crateSetAnim(eCrate)
+            crateSetSolid(eCrate)
+            ArraySetArray(g_aCrate, iItem, eCrate)
 
-                crateSetAnim(eCrate)
-                crateSetSolid(eCrate)
-                ArraySetArray(g_aCrate, iItem, eCrate)
-
-                client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_CREATE_NEW", eCrate[CRATE_NAME])
-                crateSound(id, SOUND_MENU_NAV)
-                crateMenu(id, MENU_ROOT)
-            }
-            else
-            {
-                crateSound(id, SOUND_MENU_NAV)
-                crateMenu(id, MENU_ROTATE)
-            }
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_CREATE_NEW", eCrate[CRATE_NAME])
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_ROOT)
         }
         default:
         {
@@ -1352,7 +1365,7 @@ public menuHandlerRotate(id, menu, item)
 
 public crateTask()
 {
-    new eCrate[CRATE], iItem, bool:bModified, Float:fCurrentTime
+    new eCrate[CRATE], bool:bModified, Float:fCurrentTime
     fCurrentTime = get_gametime()
 
     for ( new id = 1; id <= g_iMaxPlayers; id ++ )
@@ -1365,9 +1378,9 @@ public crateTask()
             if ( g_ePlayerData[id][PDATA_CRATE_ACTION] )
                 crateCheck(id)
         }
-        else if ( (iItem = crateGet(eCrate, g_ePlayerData[id][PDATA_CRATE_GHOST])) != -1 )
+        else if ( crateGet(eCrate, g_ePlayerData[id][PDATA_CRATE_GHOST]) != -1 )
         {
-            crateTrace(eCrate, id, iItem)
+            crateTrace(eCrate, id)
         }
     }
 
@@ -1479,6 +1492,7 @@ stock crateCreate(id, iItem)
     set_pev(iEnt, CRATE_ARRAY_ITEM, g_iCrate)
     set_pev(iEnt, pev_impulse, CRATE_KEY)
     set_pev(iEnt, pev_classname, g_szCN[eCrate[CRATE_CLASS]])
+    set_pev(iEnt, pev_angles, Float:{0.0, 180.0, 0.0})
     engfunc(EngFunc_SetModel, iEnt, eCrate[CRATE_MODEL])
 
     ArrayPushArray(g_aCrate, eCrate)
@@ -1534,7 +1548,7 @@ public saveData(id)
         formatex(szData, charsmax(szData), "status = %d^n", eCrate[CRATE_SHOW])
         fputs(iFile, szData)
 
-        eCrate[CRATE_FLAGS] &= ~(FLAG_GHOST | FLAG_SELECT | FLAG_VALID)
+        eCrate[CRATE_FLAGS] &= ~(FLAG_GHOST | FLAG_SELECT)
         formatex(szData, charsmax(szData), "flags = %d^n", eCrate[CRATE_FLAGS])
         fputs(iFile, szData)
     }
@@ -1710,7 +1724,7 @@ public fwdAddToFullPack(es, e, iEnt, iHost, iHostFlags, iPlayer, pSet)
     }
     else if ( bHidden )
     {
-        if ( eCrate[CRATE_FLAGS] & FLAG_GHOST && eCrate[CRATE_FLAGS] & FLAG_VALID )
+        if ( eCrate[CRATE_FLAGS] & FLAG_GHOST )
             return FMRES_IGNORED
 
         set_es(es, ES_RenderMode, kRenderTransAlpha)
@@ -1865,7 +1879,7 @@ public fwdKilled(id, iAttacker, bGib)
     return HAM_IGNORED
 }
 
-stock bool:crateTrace(eCrate[CRATE], id, iItem)
+stock crateTrace(eCrate[CRATE], id)
 {
     new Float:fVec1[3]
 
@@ -1886,8 +1900,6 @@ stock bool:crateTrace(eCrate[CRATE], id, iItem)
     crateSetBox(eCrate)
     crateSetOffset(eCrate)
     set_pev(eCrate[CRATE_ID], pev_origin, eCrate[CRATE_ORIGIN])
-
-    return crateStuck(eCrate, iItem)
 }
 
 stock crateCheck(id)
@@ -1976,27 +1988,6 @@ stock crateUse(id)
     }
 
     return 0
-}
-
-stock bool:crateStuck(eCrate[CRATE], iItem)
-{
-    new iEnt = -1
-
-    while( (iEnt = engfunc(EngFunc_FindEntityInSphere, iEnt, eCrate[CRATE_ORIGIN], 20.0)) )
-    {
-        if ( pev_valid(iEnt)
-        && iEnt != eCrate[CRATE_ID]
-        && pev(iEnt, pev_solid) >= SOLID_BBOX )
-        {
-            eCrate[CRATE_FLAGS] &= ~FLAG_VALID
-            ArraySetArray(g_aCrate, iItem, eCrate)
-            return false
-        }
-    }
-
-    eCrate[CRATE_FLAGS] |= FLAG_VALID
-    ArraySetArray(g_aCrate, iItem, eCrate)
-    return true
 }
 
 stock bool:crateAllow(id, eCrate[CRATE])
@@ -2129,6 +2120,7 @@ stock crateSetBox(eCrate[CRATE])
         Float:fForward[3], Float:fRight[3], Float:fUp[3],
         Float:fCorners[8][3]
 
+    eCrate[CRATE_ANGLES][0] = -eCrate[CRATE_ANGLES][0]
     engfunc(EngFunc_AngleVectors, eCrate[CRATE_ANGLES], fForward, fRight, fUp)
     xs_vec_copy(g_eSettings[SETTING_MINS], fMins)
     xs_vec_copy(g_eSettings[SETTING_MAXS], fMaxs)
@@ -2181,9 +2173,12 @@ stock crateSetOffset(eCrate[CRATE])
     fGaps[4] = -eCrate[CRATE_MINS][2]
     fGaps[5] = eCrate[CRATE_MAXS][2]
 
-    xs_vec_sub(eCrate[CRATE_ORIGIN], Float:{0.0, 0.0, 9999.9}, fVec1)
-    engfunc(EngFunc_TraceLine, eCrate[CRATE_ORIGIN], fVec1, DONT_IGNORE_MONSTERS, eCrate[CRATE_ID], 0)
-    get_tr2(0, TR_vecEndPos, eCrate[CRATE_ORIGIN])
+    if ( eCrate[CRATE_FLAGS] & FLAG_GROUND )
+    {
+        xs_vec_sub(eCrate[CRATE_ORIGIN], Float:{0.0, 0.0, 9999.9}, fVec1)
+        engfunc(EngFunc_TraceLine, eCrate[CRATE_ORIGIN], fVec1, DONT_IGNORE_MONSTERS, eCrate[CRATE_ID], 0)
+        get_tr2(0, TR_vecEndPos, eCrate[CRATE_ORIGIN])
+    }
 
     for ( new i = 0; i < 6; i ++ )
     {

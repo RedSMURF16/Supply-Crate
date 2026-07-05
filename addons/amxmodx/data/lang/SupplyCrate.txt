@@ -43,4 +43,5 @@ CRATE_REMOVE_ALL                    = Remove all Crates
 
 CRATE_ROTATE_RIGHT                  = Turn right
 CRATE_ROTATE_LEFT                   = Turn left
+CRATE_ROTATE_GROUND                 = Set on ground >> %L
 CRATE_ROTATE_PLACE                  = Place Crate
