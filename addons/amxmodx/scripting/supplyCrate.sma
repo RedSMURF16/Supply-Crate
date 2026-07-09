@@ -100,6 +100,9 @@
 #define CRATE_FLAG_FB2          (1 << 4)
 #define CRATE_FLAG_SMOKE        (1 << 5)
 
+#define XO_CBASEPLAYER          5
+#define XO_CBASEPLAYERWEAPON    4
+
 new const PLUGIN_VERSION[]          = "2.4"
 new const Float:DELAY_ON_CONNECT    = 1.0
 new const ERROR_FILE[]              = "SupplyCrate_ERRORS.log"
@@ -1164,6 +1167,14 @@ public menuHandlerStatus(id, menu, item)
             crateSound(id, SOUND_MENU_ALERT)
             crateMenu(id, MENU_STATUS)
         }
+        case MENU_EXIT:
+        {
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_ROOT)
+
+            g_ePlayerData[id][PDATA_CRATE_ACTION] = false
+            g_ePlayerData[id][PDATA_CRATE_MENU] = 0
+        }
         default:
         {
             g_ePlayerData[id][PDATA_CRATE_ACTION] = false
@@ -1250,6 +1261,14 @@ public menuHandlerRemove(id, menu, item)
 
             crateSound(id, SOUND_MENU_ALERT)
             crateMenu(id, MENU_ROOT)
+        }
+        case MENU_EXIT:
+        {
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_ROOT)
+
+            g_ePlayerData[id][PDATA_CRATE_MENU] = 0
+            g_ePlayerData[id][PDATA_CRATE_ACTION] = false
         }
         default:
         {
@@ -1349,6 +1368,16 @@ public menuHandlerRotate(id, menu, item)
             client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_CREATE_NEW", eCrate[CRATE_NAME])
             crateSound(id, SOUND_MENU_NAV)
             crateMenu(id, MENU_ROOT)
+        }
+        case MENU_EXIT:
+        {
+            crateSound(id, SOUND_MENU_NAV)
+            crateMenu(id, MENU_CREATE)
+
+            crateKill(eCrate[CRATE_ID])
+            crateRemove(iItem)
+            g_ePlayerData[id][PDATA_CRATE_GHOST] = 0
+            g_ePlayerData[id][PDATA_CRATE_ACTION] = false
         }
         default:
         {
@@ -2414,7 +2443,7 @@ stock ammoPickup(id, iAmount)
         iAmmoType
 
     iActiveWeapon = cs_get_user_weapon_entity(id)
-    iAmmoType = get_pdata_int(iActiveWeapon, MEMBER_AMMO_TYPE)
+    iAmmoType = get_pdata_int(iActiveWeapon, MEMBER_AMMO_TYPE, XO_CBASEPLAYERWEAPON)
 
     message_begin(MSG_ONE_UNRELIABLE, g_iAmmoPickup, .player = id)
     write_byte(iAmmoType)
