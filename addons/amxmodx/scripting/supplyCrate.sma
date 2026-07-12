@@ -267,9 +267,9 @@ enum _:CRATE
     Float:CRATE_FRAMERATE,
     Float:CRATE_CAPACITY_MAX,
 
-    CRATE_CRATE_MODE,
+    CRATE_SPAWN_MODE,
     Float:CRATE_SPAWN[2],
-    Float:CRATE_CRATE_CHANCE,
+    Float:CRATE_SPAWN_CHANCE,
     Float:CRATE_NEXT_SPAWN,
 
     Float:CRATE_ACTIVE_DELAY[2],
@@ -300,7 +300,10 @@ enum _:PLAYER_DATA
     PDATA_CRATE_USE,
     bool:PDATA_CRATE_ACTION,
     Float:PDATA_OFFSET,
-    Float:PDATA_NEXT_OFFSET
+    Float:PDATA_NEXT_OFFSET,
+
+    PDATA_MENU_TYPE,
+    bool:PDATA_MENU_TRACE
 }
 
 enum
@@ -536,13 +539,13 @@ public eventRoundStart()
         crateReset(eCrate)
 
         if ( eCrate[CRATE_SHOW] != SHOW_DEFAULT
-        || eCrate[CRATE_CRATE_MODE] != CRATE_ROUND_START )
+        || eCrate[CRATE_SPAWN_MODE] != CRATE_ROUND_START )
         {
             ArraySetArray(g_aCrate, i, eCrate)
             continue
         }
 
-        if ( eCrate[CRATE_CRATE_CHANCE] >= random_float(0.0, 1.0) )
+        if ( eCrate[CRATE_SPAWN_CHANCE] >= random_float(0.0, 1.0) )
         {
             eCrate[CRATE_FLAGS] |= (FLAG_SHOW | FLAG_ACTIVE)
             crateState(eCrate, true, true)
@@ -631,10 +634,10 @@ stock ReadFile()
                         eCrate[CRATE_CAPACITY]              = g_eSettings[SETTING_DEFAULT_CAPACITY]
                         eCrate[CRATE_FRAMERATE]             = (2.15 + (eCrate[CRATE_COOLDOWN] - 0.5) / (40.0 - 0.5) * (3.25 - 2.15)) / eCrate[CRATE_COOLDOWN]
 
-                        eCrate[CRATE_CRATE_MODE]            = g_eSettings[SETTING_DEFAULT_CRATE_MODE]
+                        eCrate[CRATE_SPAWN_MODE]            = g_eSettings[SETTING_DEFAULT_CRATE_MODE]
                         eCrate[CRATE_SPAWN][0]              = g_eSettings[SETTING_DEFAULT_SPAWN][0]
                         eCrate[CRATE_SPAWN][1]              = g_eSettings[SETTING_DEFAULT_SPAWN][1]
-                        eCrate[CRATE_CRATE_CHANCE]          = g_eSettings[SETTING_DEFAULT_CRATE_CHANCE]
+                        eCrate[CRATE_SPAWN_CHANCE]          = g_eSettings[SETTING_DEFAULT_CRATE_CHANCE]
 
                         eCrate[CRATE_ACTIVE_DELAY][0]       = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][0]
                         eCrate[CRATE_ACTIVE_DELAY][1]       = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][1]
@@ -806,12 +809,12 @@ stock ReadFile()
                             parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_CAPACITY], charsmax(eCrate[CRATE_CAPACITY]), g_eSettings[SETTING_DEFAULT_CAPACITY])
                             eCrate[CRATE_CAPACITY_MAX] = eCrate[CRATE_CAPACITY]
                         }
-                        else if ( equali(szKey, "CRATE_CRATE_MODE") )
-                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_CRATE_MODE], charsmax(eCrate[CRATE_CRATE_MODE]), g_eSettings[SETTING_DEFAULT_CRATE_MODE])
+                        else if ( equali(szKey, "CRATE_SPAWN_MODE") )
+                            parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_SPAWN_MODE], charsmax(eCrate[CRATE_SPAWN_MODE]), g_eSettings[SETTING_DEFAULT_CRATE_MODE])
                         else if ( equali(szKey, "CRATE_SPAWN") )
                             parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_SPAWN], charsmax(eCrate[CRATE_SPAWN]), g_eSettings[SETTING_DEFAULT_SPAWN])
-                        else if ( equali(szKey, "CRATE_CRATE_CHANCE") )
-                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_CRATE_CHANCE], charsmax(eCrate[CRATE_CRATE_CHANCE]), g_eSettings[SETTING_DEFAULT_CRATE_CHANCE])
+                        else if ( equali(szKey, "CRATE_SPAWN_CHANCE") )
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_SPAWN_CHANCE], charsmax(eCrate[CRATE_SPAWN_CHANCE]), g_eSettings[SETTING_DEFAULT_CRATE_CHANCE])
                         else if ( equali(szKey, "CRATE_ACTIVE_DELAY") )
                             parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_ACTIVE_DELAY], charsmax(eCrate[CRATE_ACTIVE_DELAY]), g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY])
                         else if ( equali(szKey, "CRATE_ACTIVE_DURATION") )
@@ -887,6 +890,9 @@ public crateInit()
 
 public crateMenu(id, iType)
 {
+    if ( !is_user_connected(id) )
+        return PLUGIN_HANDLED
+
     new szData[64], iMenu
     formatex(szData, charsmax(szData), "%L", id, "CRATE_MENU_TITLE", PLUGIN_VERSION)
     iMenu = menu_create(szData, g_szMenuHandler[iType])
@@ -1068,6 +1074,7 @@ public menuStatus(id, iMenu)
     menu_additem(iMenu, szItem)
 
     g_ePlayerData[id][PDATA_CRATE_ACTION] = true
+    g_ePlayerData[id][PDATA_MENU_TYPE] = MENU_STATUS
     eCrate[CRATE_FLAGS] |= FLAG_SELECT
     ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
 }
@@ -1076,8 +1083,11 @@ public menuHandlerStatus(id, menu, item)
 {
     new eCrate[CRATE]
     ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-    eCrate[CRATE_FLAGS] &= ~FLAG_SELECT
-    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+    if ( !g_ePlayerData[id][PDATA_MENU_TRACE] )
+    {
+        eCrate[CRATE_FLAGS] &= ~FLAG_SELECT
+        ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+    }
 
     switch( item )
     {
@@ -1169,11 +1179,16 @@ public menuHandlerStatus(id, menu, item)
         }
         case MENU_EXIT:
         {
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_ROOT)
+            if ( !g_ePlayerData[id][PDATA_MENU_TRACE] )
+            {
+                crateSound(id, SOUND_MENU_NAV)
+                crateMenu(id, MENU_ROOT)
 
-            g_ePlayerData[id][PDATA_CRATE_ACTION] = false
-            g_ePlayerData[id][PDATA_CRATE_MENU] = 0
+                g_ePlayerData[id][PDATA_CRATE_ACTION] = false
+                g_ePlayerData[id][PDATA_CRATE_MENU] = 0
+            }
+
+            g_ePlayerData[id][PDATA_MENU_TRACE] = false
         }
         default:
         {
@@ -1188,9 +1203,7 @@ public menuHandlerStatus(id, menu, item)
 
 public menuRemove(id, iMenu)
 {
-    new szItem[64],
-        eCrate[CRATE]
-
+    new szItem[64], eCrate[CRATE]
     menuNav(id, iMenu)
     ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
 
@@ -1201,6 +1214,7 @@ public menuRemove(id, iMenu)
     menu_additem(iMenu, szItem)
 
     g_ePlayerData[id][PDATA_CRATE_ACTION] = true
+    g_ePlayerData[id][PDATA_MENU_TYPE] = MENU_REMOVE
     eCrate[CRATE_FLAGS] |= FLAG_SELECT
     ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
 }
@@ -1208,10 +1222,12 @@ public menuRemove(id, iMenu)
 public menuHandlerRemove(id, menu, item)
 {
     new eCrate[CRATE]
-
     ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
-    eCrate[CRATE_FLAGS] &= ~FLAG_SELECT
-    ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+    if ( !g_ePlayerData[id][PDATA_MENU_TRACE] )
+    {
+        eCrate[CRATE_FLAGS] &= ~FLAG_SELECT
+        ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
+    }
 
     switch( item )
     {
@@ -1264,11 +1280,16 @@ public menuHandlerRemove(id, menu, item)
         }
         case MENU_EXIT:
         {
-            crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_ROOT)
+            if ( !g_ePlayerData[id][PDATA_MENU_TRACE] )
+            {
+                crateSound(id, SOUND_MENU_NAV)
+                crateMenu(id, MENU_ROOT)
 
-            g_ePlayerData[id][PDATA_CRATE_MENU] = 0
-            g_ePlayerData[id][PDATA_CRATE_ACTION] = false
+                g_ePlayerData[id][PDATA_CRATE_MENU] = 0
+                g_ePlayerData[id][PDATA_CRATE_ACTION] = false
+            }
+
+            g_ePlayerData[id][PDATA_MENU_TRACE] = false
         }
         default:
         {
@@ -1358,6 +1379,7 @@ public menuHandlerRotate(id, menu, item)
             g_ePlayerData[id][PDATA_CRATE_GHOST] = 0
             g_ePlayerData[id][PDATA_CRATE_ACTION] = false
 
+            eCrate[CRATE_ANGLES][0] = -eCrate[CRATE_ANGLES][0]
             eCrate[CRATE_NEXT_USE] = fCurrentTime + 0.25
             eCrate[CRATE_FLAGS] |= (FLAG_SHOW | FLAG_ACTIVE)
             eCrate[CRATE_FLAGS] &= ~FLAG_GHOST
@@ -1472,11 +1494,11 @@ public crateTask()
         {
             if ( eCrate[CRATE_FLAGS] & FLAG_DEAD
             && eCrate[CRATE_SHOW] == SHOW_DEFAULT
-            && eCrate[CRATE_CRATE_MODE] == CRATE_DELAY
+            && eCrate[CRATE_SPAWN_MODE] == CRATE_DELAY
             && eCrate[CRATE_NEXT_SPAWN]
             && fCurrentTime >= eCrate[CRATE_NEXT_SPAWN] )
             {
-                if ( eCrate[CRATE_CRATE_CHANCE] >= random_float(0.0, 1.0) )
+                if ( eCrate[CRATE_SPAWN_CHANCE] >= random_float(0.0, 1.0) )
                 {
                     eCrate[CRATE_FLAGS] |= FLAG_SHOW
                     eCrate[CRATE_NEXT_SPAWN] = 0.0
@@ -1682,7 +1704,7 @@ stock loadDataCrate(Float:fOrigin[3], Float:fAngles[3], iStatus, iFlags, iItem, 
     eCrate[CRATE_FRAMERATE]     = (2.15 + (eCrate[CRATE_COOLDOWN] - 0.5) / (40.0 - 0.5) * (3.25 - 2.15)) / eCrate[CRATE_COOLDOWN]
 
     if ( eCrate[CRATE_SHOW] == SHOW_DEFAULT
-    && eCrate[CRATE_CRATE_MODE] == CRATE_DELAY
+    && eCrate[CRATE_SPAWN_MODE] == CRATE_DELAY
     && eCrate[CRATE_FLAGS] & FLAG_DEAD )
         eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
 
@@ -1800,7 +1822,7 @@ public fwdTakeDamage(iEnt, iInflictor, iAttacker, Float:fDamage, iDamageBits)
 
         crateGib(eCrate[CRATE_ID])
         if ( eCrate[CRATE_SHOW] == SHOW_DEFAULT
-        && eCrate[CRATE_CRATE_MODE] == CRATE_DELAY )
+        && eCrate[CRATE_SPAWN_MODE] == CRATE_DELAY )
             eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
 
         if ( eCrate[CRATE_FLAGS] & FLAG_EXPLODE )
@@ -1978,10 +2000,9 @@ stock crateCheck(id)
         eCrate[CRATE_FLAGS] &= ~FLAG_SELECT
         ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
 
-        ArrayGetArray(g_aCrate, iBest, eCrate)
-        eCrate[CRATE_FLAGS] |= FLAG_SELECT
-        ArraySetArray(g_aCrate, iBest, eCrate)
+        g_ePlayerData[id][PDATA_MENU_TRACE] = true
         g_ePlayerData[id][PDATA_CRATE_MENU] = iBest
+        crateMenu(id, g_ePlayerData[id][PDATA_MENU_TYPE])
     }
 }
 
