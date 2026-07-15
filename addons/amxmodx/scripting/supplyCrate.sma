@@ -126,6 +126,7 @@ enum
     DTYPE_VECTOR_FLOAT,
     DTYPE_ARRAY_SOUND,
     DTYPE_STRING_MODEL,
+    DTYPE_STRING_MODEL_ID,
     DTYPE_STRING_SOUND,
     DTYPE_STRING_SPRITE,
     DTYPE_VECTOR_LIST
@@ -140,25 +141,10 @@ enum
     FLAG_ACTIVE_DURATION    = (1 << 4),
 
     FLAG_SHOW               = (1 << 5),
-    FLAG_DEAD               = (1 << 6),
-    FLAG_GHOST              = (1 << 7),
-    FLAG_SELECT             = (1 << 8),
-    FLAG_ACTIVE             = (1 << 9),
-    FLAG_GROUND             = (1 << 10)
-}
-
-enum
-{
-    STATUS_DEFAULT,
-    STATUS_FORCE_ENABLE,
-    STATUS_FORCE_DISABLE
-}
-
-enum
-{
-    SHOW_DEFAULT,
-    SHOW_FORCE_SHOW,
-    SHOW_FORCE_HIDE
+    FLAG_GHOST              = (1 << 6),
+    FLAG_SELECT             = (1 << 7),
+    FLAG_ACTIVE             = (1 << 8),
+    FLAG_GROUND             = (1 << 9)
 }
 
 enum
@@ -186,7 +172,7 @@ enum
 enum _:MAIN_SETTINGS
 {
     SETTING_DEFAULT_MODEL[MAX_RESOURCE_PATH_LENGTH],
-    SETTING_DEFAULT_GIB[MAX_RESOURCE_PATH_LENGTH],
+    SETTING_DEFAULT_GIB,
     SETTING_DEFAULT_CLASS,
     SETTING_DEFAULT_FLAGS,
     SETTING_DEFAULT_TEAM,
@@ -198,7 +184,7 @@ enum _:MAIN_SETTINGS
 
     SETTING_DEFAULT_CRATE_MODE,
     Float:SETTING_DEFAULT_SPAWN[2],
-    Float:SETTING_DEFAULT_CRATE_CHANCE,
+    Float:SETTING_DEFAULT_SPAWN_CHANCE,
 
     Float:SETTING_DEFAULT_ACTIVE_DELAY[2],
     Float:SETTING_DEFAULT_ACTIVE_DURATION[2],
@@ -249,8 +235,6 @@ enum _:CRATE
     CRATE_ITEM,
     CRATE_CLASS,
     CRATE_FLAGS,
-    CRATE_STATUS,
-    CRATE_SHOW,
     CRATE_TEAM,
     CRATE_MODE,
     CRATE_NAME[MAX_VALUE_LENGTH],
@@ -330,7 +314,7 @@ enum
 {
     MENU_ROOT,
     MENU_CREATE,
-    MENU_STATUS,
+    MENU_SHOW,
     MENU_REMOVE,
     MENU_ROTATE
 }
@@ -338,7 +322,7 @@ enum
 enum
 {
     ROOT_CREATE,
-    ROOT_STATUS,
+    ROOT_SHOW,
     ROOT_REMOVE,
     ROOT_SAVE,
 
@@ -348,13 +332,12 @@ enum
 
 enum
 {
-    STATUS_NEXT,
-    STATUS_BACK,
+    SHOW_NEXT,
+    SHOW_BACK,
 
-    STATUS_CURRENT = 3,
-    STATUS_ALL_ENABLE,
-    STATUS_ALL_DISABLE,
-    STATUS_ALL_DEFAULT
+    SHOW_CURRENT = 3,
+    SHOW_ALL_SHOW,
+    SHOW_ALL_HIDE
 }
 
 enum
@@ -405,7 +388,7 @@ new g_szMenuHandler[][] =
 {
     "menuHandlerRoot",
     "menuHandlerCreate",
-    "menuHandlerStatus",
+    "menuHandlerShow",
     "menuHandlerRemove",
     "menuHandlerRotate"
 }
@@ -426,10 +409,6 @@ new Array:g_aCrate,
     g_iCrateConfig,
     g_iAmmoPickup, g_iWeapPickup,
     g_iMaxPlayers
-
-new g_szStatus[][] = {"CRATE_DEFAULT", "CRATE_ENABLED", "CRATE_DISABLED"}
-new g_szStatusChat[][] = {"CRATE_CHAT_DEFAULT", "CRATE_CHAT_ENABLED", "CRATE_CHAT_DISABLED"}
-new g_szStatusColor[][] = {"\d", "\y", "\r"}
 
 public plugin_init()
 {
@@ -532,19 +511,13 @@ public eventRoundStart()
         return PLUGIN_HANDLED
 
     new eCrate[CRATE]
-
     for ( new i = 0; i < g_iCrate; i ++ )
     {
         ArrayGetArray(g_aCrate, i, eCrate)
-        crateReset(eCrate)
-
-        if ( eCrate[CRATE_SHOW] != SHOW_DEFAULT
-        || eCrate[CRATE_SPAWN_MODE] != CRATE_ROUND_START )
-        {
-            ArraySetArray(g_aCrate, i, eCrate)
+        if ( !(eCrate[CRATE_FLAGS] & FLAG_SHOW) )
             continue
-        }
 
+        crateReset(eCrate)
         if ( eCrate[CRATE_SPAWN_CHANCE] >= random_float(0.0, 1.0) )
         {
             eCrate[CRATE_FLAGS] |= (FLAG_SHOW | FLAG_ACTIVE)
@@ -553,7 +526,7 @@ public eventRoundStart()
         else
         {
             eCrate[CRATE_FLAGS] &= ~(FLAG_SHOW | FLAG_ACTIVE)
-            crateState(eCrate, false, false)
+            crateState(eCrate, false)
         }
 
         ArraySetArray(g_aCrate, i, eCrate)
@@ -637,7 +610,7 @@ stock ReadFile()
                         eCrate[CRATE_SPAWN_MODE]            = g_eSettings[SETTING_DEFAULT_CRATE_MODE]
                         eCrate[CRATE_SPAWN][0]              = g_eSettings[SETTING_DEFAULT_SPAWN][0]
                         eCrate[CRATE_SPAWN][1]              = g_eSettings[SETTING_DEFAULT_SPAWN][1]
-                        eCrate[CRATE_SPAWN_CHANCE]          = g_eSettings[SETTING_DEFAULT_CRATE_CHANCE]
+                        eCrate[CRATE_SPAWN_CHANCE]          = g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE]
 
                         eCrate[CRATE_ACTIVE_DELAY][0]       = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][0]
                         eCrate[CRATE_ACTIVE_DELAY][1]       = g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY][1]
@@ -692,7 +665,7 @@ stock ReadFile()
                         if ( equali(szKey, "SETTING_DEFAULT_MODEL") )
                             parseSetting(DTYPE_STRING_MODEL, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_MODEL], charsmax(g_eSettings[SETTING_DEFAULT_MODEL]))
                         else if ( equali(szKey, "SETTING_DEFAULT_GIB") )
-                            parseSetting(DTYPE_STRING_MODEL, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_GIB], charsmax(g_eSettings[SETTING_DEFAULT_GIB]))
+                            parseSetting(DTYPE_STRING_MODEL_ID, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_GIB], charsmax(g_eSettings[SETTING_DEFAULT_GIB]))
                         else if ( equali(szKey, "SETTING_DEFAULT_CLASS") )
                             parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_CLASS], charsmax(g_eSettings[SETTING_DEFAULT_CLASS]))
                         else if ( equali(szKey, "SETTING_DEFAULT_FLAGS") )
@@ -711,8 +684,8 @@ stock ReadFile()
                             parseSetting(DTYPE_INT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_CRATE_MODE], charsmax(g_eSettings[SETTING_DEFAULT_CRATE_MODE]))
                         else if ( equali(szKey, "SETTING_DEFAULT_SPAWN") )
                             parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_SPAWN], charsmax(g_eSettings[SETTING_DEFAULT_SPAWN]))
-                        else if ( equali(szKey, "SETTING_DEFAULT_CRATE_CHANCE") )
-                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_CRATE_CHANCE], charsmax(g_eSettings[SETTING_DEFAULT_CRATE_CHANCE]))
+                        else if ( equali(szKey, "SETTING_DEFAULT_SPAWN_CHANCE") )
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE], charsmax(g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE]))
                         else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_DELAY") )
                             parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY], charsmax(g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY]))
                         else if ( equali(szKey, "SETTING_DEFAULT_ACTIVE_DURATION") )
@@ -814,7 +787,7 @@ stock ReadFile()
                         else if ( equali(szKey, "CRATE_SPAWN") )
                             parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_SPAWN], charsmax(eCrate[CRATE_SPAWN]), g_eSettings[SETTING_DEFAULT_SPAWN])
                         else if ( equali(szKey, "CRATE_SPAWN_CHANCE") )
-                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_SPAWN_CHANCE], charsmax(eCrate[CRATE_SPAWN_CHANCE]), g_eSettings[SETTING_DEFAULT_CRATE_CHANCE])
+                            parseSetting(DTYPE_FLOAT, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_SPAWN_CHANCE], charsmax(eCrate[CRATE_SPAWN_CHANCE]), g_eSettings[SETTING_DEFAULT_SPAWN_CHANCE])
                         else if ( equali(szKey, "CRATE_ACTIVE_DELAY") )
                             parseSetting(DTYPE_FLOAT_RANGE, szKey, charsmax(szKey), szValue, charsmax(szValue), eCrate[CRATE_ACTIVE_DELAY], charsmax(eCrate[CRATE_ACTIVE_DELAY]), g_eSettings[SETTING_DEFAULT_ACTIVE_DELAY])
                         else if ( equali(szKey, "CRATE_ACTIVE_DURATION") )
@@ -901,7 +874,7 @@ public crateMenu(id, iType)
     {
         case MENU_ROOT:   { menuRoot(id, iMenu); }
         case MENU_CREATE: { menuCreate(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_CREATE"); }
-        case MENU_STATUS: { menuStatus(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_STATUS"); }
+        case MENU_SHOW:   { menuShow(id, iMenu);    format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_SHOW"); }
         case MENU_REMOVE: { menuRemove(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_REMOVE"); }
         case MENU_ROTATE: { menuRotate(id, iMenu);  format(szData, charsmax(szData), "%s^n%L", szData, id, "CRATE_ROOT_ROTATE"); }
     }
@@ -937,7 +910,7 @@ public menuRoot(id, iMenu)
     formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_CREATE")
     menu_additem(iMenu, szItem )
 
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_STATUS")
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_SHOW")
     menu_additem(iMenu, szItem)
 
     formatex(szItem, charsmax(szItem), "%L", id, "CRATE_ROOT_REMOVE")
@@ -978,7 +951,7 @@ public menuHandlerRoot(id, menu, item)
                 crateMenu(id, MENU_CREATE)
             }
         }
-        case ROOT_STATUS:
+        case ROOT_SHOW:
         {
             if ( !g_iCrate )
             {
@@ -988,7 +961,7 @@ public menuHandlerRoot(id, menu, item)
             else
             {
                 crateSound(id, SOUND_MENU_NAV)
-                crateMenu(id, MENU_STATUS)
+                crateMenu(id, MENU_SHOW)
             }
         }
         case ROOT_REMOVE:
@@ -1053,33 +1026,30 @@ public menuHandlerCreate(id, menu, item)
     return PLUGIN_HANDLED
 }
 
-public menuStatus(id, iMenu)
+public menuShow(id, iMenu)
 {
     new szItem[64], eCrate[CRATE]
 
     menuNav(id, iMenu)
     ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
 
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_STATUS_CURRENT",
-    g_szStatusColor[eCrate[CRATE_STATUS]], eCrate[CRATE_NAME], id, g_szStatus[eCrate[CRATE_STATUS]])
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SHOW_CURRENT",
+    eCrate[CRATE_FLAGS] & FLAG_SHOW ? "\y" : "\r", eCrate[CRATE_NAME], id, eCrate[CRATE_FLAGS] & FLAG_SHOW ? "CRATE_SHOWN" : "CRATE_HIDDEN")
     menu_additem(iMenu, szItem)
 
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_STATUS_ALL_ENABLE")
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SHOW_ALL_SHOW")
     menu_additem(iMenu, szItem)
 
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_STATUS_ALL_DISABLE")
-    menu_additem(iMenu, szItem)
-
-    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_STATUS_ALL_DEFAULT")
+    formatex(szItem, charsmax(szItem), "%L", id, "CRATE_SHOW_ALL_HIDE")
     menu_additem(iMenu, szItem)
 
     g_ePlayerData[id][PDATA_CRATE_ACTION] = true
-    g_ePlayerData[id][PDATA_MENU_TYPE] = MENU_STATUS
+    g_ePlayerData[id][PDATA_MENU_TYPE] = MENU_SHOW
     eCrate[CRATE_FLAGS] |= FLAG_SELECT
     ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
 }
 
-public menuHandlerStatus(id, menu, item)
+public menuHandlerShow(id, menu, item)
 {
     new eCrate[CRATE]
     ArrayGetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
@@ -1091,7 +1061,7 @@ public menuHandlerStatus(id, menu, item)
 
     switch( item )
     {
-        case STATUS_NEXT:
+        case SHOW_NEXT:
         {
             if ( g_ePlayerData[id][PDATA_CRATE_MENU] >= g_iCrate - 1 )
                 g_ePlayerData[id][PDATA_CRATE_MENU] = 0
@@ -1099,9 +1069,9 @@ public menuHandlerStatus(id, menu, item)
                 g_ePlayerData[id][PDATA_CRATE_MENU] ++
 
             crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_STATUS)
+            crateMenu(id, MENU_SHOW)
         }
-        case STATUS_BACK:
+        case SHOW_BACK:
         {
             if ( g_ePlayerData[id][PDATA_CRATE_MENU] <= 0 )
                 g_ePlayerData[id][PDATA_CRATE_MENU] = g_iCrate - 1
@@ -1109,73 +1079,49 @@ public menuHandlerStatus(id, menu, item)
                 g_ePlayerData[id][PDATA_CRATE_MENU] --
 
             crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_STATUS)
+            crateMenu(id, MENU_SHOW)
         }
-        case STATUS_CURRENT:
+        case SHOW_CURRENT:
         {
-            if ( ++ eCrate[CRATE_STATUS] > STATUS_FORCE_DISABLE )
-                eCrate[CRATE_STATUS] = STATUS_DEFAULT
+            eCrate[CRATE_FLAGS] ^= FLAG_SHOW
+            crateState(eCrate, eCrate[CRATE_FLAGS] & FLAG_SHOW ? true : false, false)
 
-            if ( eCrate[CRATE_STATUS] == STATUS_FORCE_ENABLE
-            || eCrate[CRATE_STATUS] == STATUS_DEFAULT )
-                eCrate[CRATE_FLAGS] |= FLAG_ACTIVE
-            else
-            {
-                eCrate[CRATE_FLAGS] &= ~FLAG_ACTIVE
-                eCrate[CRATE_NEXT_USE] = 0.0
-                crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_IDLE, 1.0)
-            }
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_STATUS_CURRENT",
-            eCrate[CRATE_NAME], id, g_szStatusChat[eCrate[CRATE_STATUS]])
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SHOW_CURRENT",
+            eCrate[CRATE_NAME], id, eCrate[CRATE_FLAGS] & FLAG_SHOW ? "CRATE_CHAT_SHOWN" : "CRATE_CHAT_HIDDEN")
             ArraySetArray(g_aCrate, g_ePlayerData[id][PDATA_CRATE_MENU], eCrate)
 
             crateSound(id, SOUND_MENU_NAV)
-            crateMenu(id, MENU_STATUS)
+            crateMenu(id, MENU_SHOW)
         }
-        case STATUS_ALL_ENABLE:
+        case SHOW_ALL_SHOW:
         {
             for ( new i = 0; i < g_iCrate; i ++ )
             {
                 ArrayGetArray(g_aCrate, i, eCrate)
-                eCrate[CRATE_FLAGS] |= FLAG_ACTIVE
-                eCrate[CRATE_STATUS] = STATUS_FORCE_ENABLE
+                eCrate[CRATE_FLAGS] |= FLAG_SHOW
+                crateState(eCrate, true, false)
                 ArraySetArray(g_aCrate, i, eCrate)
             }
 
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_STATUS_ALL_ENABLED")
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SHOW_ALL_SHOWN")
             crateSound(id, SOUND_MENU_ALERT)
-            crateMenu(id, MENU_STATUS)
+            crateMenu(id, MENU_SHOW)
         }
-        case STATUS_ALL_DISABLE:
+        case SHOW_ALL_HIDE:
         {
             for ( new i = 0; i < g_iCrate; i ++ )
             {
                 ArrayGetArray(g_aCrate, i, eCrate)
-                eCrate[CRATE_FLAGS] &= ~FLAG_ACTIVE
-                eCrate[CRATE_STATUS] = STATUS_FORCE_DISABLE
+                eCrate[CRATE_FLAGS] &= ~FLAG_SHOW
                 eCrate[CRATE_NEXT_USE] = 0.0
+                crateState(eCrate, false)
                 crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_IDLE, 1.0)
                 ArraySetArray(g_aCrate, i, eCrate)
             }
 
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_STATUS_ALL_DISABLED")
+            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_SHOW_ALL_HIDDEN")
             crateSound(id, SOUND_MENU_ALERT)
-            crateMenu(id, MENU_STATUS)
-        }
-        case STATUS_ALL_DEFAULT:
-        {
-            for ( new i = 0; i < g_iCrate; i ++ )
-            {
-                ArrayGetArray(g_aCrate, i, eCrate)
-                eCrate[CRATE_FLAGS] |= FLAG_ACTIVE
-                eCrate[CRATE_STATUS] = STATUS_DEFAULT
-                ArraySetArray(g_aCrate, i, eCrate)
-            }
-
-            client_print_color(id, id, "%L %L", id, "CRATE_CHAT_TAG", id, "CRATE_CHAT_STATUS_ALL_DEFAULT")
-            crateSound(id, SOUND_MENU_ALERT)
-            crateMenu(id, MENU_STATUS)
+            crateMenu(id, MENU_SHOW)
         }
         case MENU_EXIT:
         {
@@ -1492,9 +1438,7 @@ public crateTask()
         }
         else
         {
-            if ( eCrate[CRATE_FLAGS] & FLAG_DEAD
-            && eCrate[CRATE_SHOW] == SHOW_DEFAULT
-            && eCrate[CRATE_SPAWN_MODE] == CRATE_DELAY
+            if ( eCrate[CRATE_SPAWN_MODE] == CRATE_DELAY
             && eCrate[CRATE_NEXT_SPAWN]
             && fCurrentTime >= eCrate[CRATE_NEXT_SPAWN] )
             {
@@ -1543,7 +1487,6 @@ stock crateCreate(id, iItem)
     set_pev(iEnt, CRATE_ARRAY_ITEM, g_iCrate)
     set_pev(iEnt, pev_impulse, CRATE_KEY)
     set_pev(iEnt, pev_classname, g_szCN[eCrate[CRATE_CLASS]])
-    set_pev(iEnt, pev_angles, Float:{0.0, 180.0, 0.0})
     engfunc(EngFunc_SetModel, iEnt, eCrate[CRATE_MODEL])
 
     ArrayPushArray(g_aCrate, eCrate)
@@ -1596,9 +1539,6 @@ public saveData(id)
         eCrate[CRATE_ANGLES][0], eCrate[CRATE_ANGLES][1], eCrate[CRATE_ANGLES][2])
         fputs(iFile, szData)
 
-        formatex(szData, charsmax(szData), "status = %d^n", eCrate[CRATE_SHOW])
-        fputs(iFile, szData)
-
         eCrate[CRATE_FLAGS] &= ~(FLAG_GHOST | FLAG_SELECT)
         formatex(szData, charsmax(szData), "flags = %d^n", eCrate[CRATE_FLAGS])
         fputs(iFile, szData)
@@ -1616,8 +1556,7 @@ stock loadData()
 {
     new szFile[128], iFile,
         szData[64], szKey[32], szValue[32],
-        Float:fOrigin[3], Float:fAngles[3], iItem,
-        iStatus, iFlags, iCount = -1
+        Float:fOrigin[3], Float:fAngles[3], iItem, iFlags, iCount = -1
 
     get_mapname(szFile, charsmax(szFile))
     format(szFile, charsmax(szFile), "maps/%s_SupplyCrate.ini", szFile)
@@ -1634,7 +1573,7 @@ stock loadData()
         {
             if ( iCount != -1 )
             {
-                loadDataCrate(fOrigin, fAngles, iStatus, iFlags, iItem, iCount)
+                loadDataCrate(fOrigin, fAngles, iFlags, iItem, iCount)
             }
 
             iCount ++
@@ -1667,10 +1606,6 @@ stock loadData()
                 fAngles[1] = str_to_float(szKey)
                 fAngles[2] = str_to_float(szValue)
             }
-            else if ( equal(szKey, "status") )
-            {
-                iStatus = str_to_num(szValue)
-            }
             else if ( equal(szKey, "flags") )
             {
                 iFlags = str_to_num(szValue)
@@ -1679,13 +1614,13 @@ stock loadData()
     }
 
     if ( iCount != -1 )
-        loadDataCrate(fOrigin, fAngles, iStatus, iFlags, iItem, iCount)
+        loadDataCrate(fOrigin, fAngles, iFlags, iItem, iCount)
 
     fclose(iFile)
     return PLUGIN_HANDLED
 }
 
-stock loadDataCrate(Float:fOrigin[3], Float:fAngles[3], iStatus, iFlags, iItem, iCount)
+stock loadDataCrate(Float:fOrigin[3], Float:fAngles[3], iFlags, iItem, iCount)
 {
     new eCrate[CRATE], Float:fCurrentTime
 
@@ -1699,19 +1634,16 @@ stock loadDataCrate(Float:fOrigin[3], Float:fAngles[3], iStatus, iFlags, iItem, 
     set_pev(eCrate[CRATE_ID], pev_angles, fAngles)
 
     eCrate[CRATE_NEXT_USE]      = fCurrentTime + 0.25
-    eCrate[CRATE_STATUS]        = iStatus
     eCrate[CRATE_FLAGS]         = iFlags
     eCrate[CRATE_FRAMERATE]     = (2.15 + (eCrate[CRATE_COOLDOWN] - 0.5) / (40.0 - 0.5) * (3.25 - 2.15)) / eCrate[CRATE_COOLDOWN]
 
-    if ( eCrate[CRATE_SHOW] == SHOW_DEFAULT
-    && eCrate[CRATE_SPAWN_MODE] == CRATE_DELAY
-    && eCrate[CRATE_FLAGS] & FLAG_DEAD )
+    if ( eCrate[CRATE_SPAWN_MODE] == CRATE_DELAY )
         eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
 
     crateSetBox(eCrate)
     crateSetAnim(eCrate, false)
-    if ( eCrate[CRATE_FLAGS] & FLAG_SHOW )
-        crateSetSolid(eCrate)
+    crateSetSolid(eCrate)
+    crateState(eCrate, eCrate[CRATE_FLAGS] & FLAG_SHOW ? true : false, false)
 
     ArraySetArray(g_aCrate, iCount, eCrate)
 }
@@ -1764,8 +1696,8 @@ public fwdAddToFullPack(es, e, iEnt, iHost, iHostFlags, iPlayer, pSet)
     }
     else if ( eCrate[CRATE_FLAGS] & FLAG_SELECT )
     {
-        if ( eCrate[CRATE_FLAGS] & FLAG_ACTIVE )    set_es(es, ES_RenderColor, g_eSettings[SETTING_COLOR_ACTIVE])
-        else                                        set_es(es, ES_RenderColor, g_eSettings[SETTING_COLOR_INACTIVE])
+        if ( !bHidden ) set_es(es, ES_RenderColor, g_eSettings[SETTING_COLOR_ACTIVE])
+        else            set_es(es, ES_RenderColor, g_eSettings[SETTING_COLOR_INACTIVE])
 
         set_es(es, ES_RenderAmt, 32)
         set_es(es, ES_RenderFx, kRenderFxGlowShell)
@@ -1773,11 +1705,8 @@ public fwdAddToFullPack(es, e, iEnt, iHost, iHostFlags, iPlayer, pSet)
         if ( bHidden )
             set_es(es, ES_RenderMode, kRenderTransAlpha)
     }
-    else if ( bHidden )
+    else if ( eCrate[CRATE_FLAGS] & FLAG_GHOST || bHidden )
     {
-        if ( eCrate[CRATE_FLAGS] & FLAG_GHOST )
-            return FMRES_IGNORED
-
         set_es(es, ES_RenderMode, kRenderTransAlpha)
         set_es(es, ES_RenderAmt, g_eSettings[SETTING_GHOST_ALPHA])
     }
@@ -1810,19 +1739,17 @@ public fwdTakeDamage(iEnt, iInflictor, iAttacker, Float:fDamage, iDamageBits)
     pev(iEnt, pev_health, fHealth)
     fCurrentTime = get_gametime()
 
-    if ( !(eCrate[CRATE_FLAGS] & FLAG_BREAK)
-    || eCrate[CRATE_SHOW] == SHOW_FORCE_SHOW )
+    if ( !(eCrate[CRATE_FLAGS] & FLAG_BREAK) )
     {
         SetHamParamFloat(4, 0.0)
     }
     else if ( fDamage >= fHealth )
     {
         eCrate[CRATE_FLAGS] &= ~FLAG_SHOW
-        crateState(eCrate, false, true)
+        crateState(eCrate, false)
 
         crateGib(eCrate[CRATE_ID])
-        if ( eCrate[CRATE_SHOW] == SHOW_DEFAULT
-        && eCrate[CRATE_SPAWN_MODE] == CRATE_DELAY )
+        if ( eCrate[CRATE_SPAWN_MODE] == CRATE_DELAY )
             eCrate[CRATE_NEXT_SPAWN] = fCurrentTime + random_float(eCrate[CRATE_SPAWN][0], eCrate[CRATE_SPAWN][1])
 
         if ( eCrate[CRATE_FLAGS] & FLAG_EXPLODE )
@@ -2277,17 +2204,12 @@ stock crateSetAnim(eCrate[CRATE], bool:bPlaySound = true)
 
 stock crateSetSolid(eCrate[CRATE])
 {
-    new Float:fMins[3],
-        Float:fMaxs[3]
-
     set_pev(eCrate[CRATE_ID], pev_solid, SOLID_BBOX)
     set_pev(eCrate[CRATE_ID], pev_movetype, MOVETYPE_NONE)
     set_pev(eCrate[CRATE_ID], pev_takedamage, DAMAGE_AIM)
     set_pev(eCrate[CRATE_ID], pev_health, random_float(eCrate[CRATE_HEALTH][0], eCrate[CRATE_HEALTH][1]))
 
-    xs_vec_copy(eCrate[CRATE_MINS], fMins)
-    xs_vec_copy(eCrate[CRATE_MAXS], fMaxs)
-    engfunc(EngFunc_SetSize, eCrate[CRATE_ID], fMins, fMaxs)
+    engfunc(EngFunc_SetSize, eCrate[CRATE_ID], eCrate[CRATE_MINS], eCrate[CRATE_MAXS])
     set_rendering(eCrate[CRATE_ID], kRenderFxNone, 255, 255, 255, kRenderNormal, 255)
 }
 
@@ -2397,7 +2319,7 @@ stock crateGib(iEnt)
     message_end()
 }
 
-stock crateState(eCrate[CRATE], bool:bShow, bool:bFlag)
+stock crateState(eCrate[CRATE], bool:bShow, bool:bFlag = false)
 {
     if ( bShow )
     {
@@ -2409,7 +2331,6 @@ stock crateState(eCrate[CRATE], bool:bShow, bool:bFlag)
             set_pev(eCrate[CRATE_ID], pev_health, random_float(eCrate[CRATE_HEALTH][0], eCrate[CRATE_HEALTH][1]))
             eCrate[CRATE_CAPACITY] = eCrate[CRATE_CAPACITY_MAX]
 
-            eCrate[CRATE_FLAGS] &= ~FLAG_DEAD
             crateSetAnim(eCrate)
         }
     }
@@ -2418,17 +2339,14 @@ stock crateState(eCrate[CRATE], bool:bShow, bool:bFlag)
         set_pev(eCrate[CRATE_ID], pev_solid, SOLID_NOT)
         set_pev(eCrate[CRATE_ID], pev_takedamage, DAMAGE_NO)
 
-        if ( bFlag )
-        {
-            eCrate[CRATE_FLAGS] |= FLAG_DEAD
-            eCrate[CRATE_NEXT_USE] = 0.0
-            crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_IDLE, 1.0)
-        }
+        eCrate[CRATE_NEXT_USE] = 0.0
+        crateSetSeq(eCrate[CRATE_ID], CRATE_SEQ_IDLE, 1.0)
     }
 }
 
 stock crateReset(eCrate[CRATE])
 {
+    eCrate[CRATE_FLAGS]         &= ~(FLAG_SHOW | FLAG_ACTIVE)
     eCrate[CRATE_NEXT_USE]      = 0.0
     eCrate[CRATE_NEXT_EMPTY]    = 0.0
     eCrate[CRATE_NEXT_REFILL]   = 0.0
@@ -2673,6 +2591,11 @@ stock parseSetting(iType, szKey[], iKeyLen, szValue[], iValueLen, any:output[], 
         {
             copy(output, iOutputLen, szValue)
             if ( !g_bFileWasRead ) precache_model(szValue)
+        }
+        case DTYPE_STRING_MODEL_ID:
+        {
+            if ( !g_bFileWasRead )
+                output[0] = precache_model(szValue)
         }
         case DTYPE_STRING_SOUND:
         {
