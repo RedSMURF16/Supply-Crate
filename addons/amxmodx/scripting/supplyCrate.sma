@@ -1332,7 +1332,6 @@ public menuHandlerRotate(id, menu, item)
             g_ePlayerData[id][PDATA_CRATE_GHOST] = 0
             g_ePlayerData[id][PDATA_CRATE_ACTION] = false
 
-            eCrate[CRATE_ANGLES][0] = -eCrate[CRATE_ANGLES][0]
             eCrate[CRATE_NEXT_USE] = fCurrentTime + 0.25
             eCrate[CRATE_FLAGS] |= (FLAG_SHOW | FLAG_ACTIVE)
             eCrate[CRATE_FLAGS] &= ~FLAG_GHOST
@@ -1635,6 +1634,7 @@ stock loadDataCrate(Float:fOrigin[3], Float:fAngles[3], iFlags, iItem, iCount)
     crateCreate(0, iItem)
     ArrayGetArray(g_aCrate, iCount, eCrate)
 
+    fAngles[0] = -fAngles[0]
     xs_vec_copy(fOrigin, eCrate[CRATE_ORIGIN])
     xs_vec_copy(fAngles, eCrate[CRATE_ANGLES])
     set_pev(eCrate[CRATE_ID], pev_origin, fOrigin)
