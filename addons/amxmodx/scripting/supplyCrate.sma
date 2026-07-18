@@ -836,11 +836,11 @@ public client_authorized(id)
 
 public client_disconnected(id)
 {
-    new iItem
+    new eCrate[CRATE], iItem
     if ( g_ePlayerData[id][PDATA_CRATE_GHOST]
-    && (iItem = pev(g_ePlayerData[id][PDATA_CRATE_GHOST], CRATE_ARRAY_ITEM)) != -1 )
+    && (iItem = crateGet(eCrate, g_ePlayerData[id][PDATA_CRATE_GHOST])) != -1 )
     {
-        crateKill(g_ePlayerData[id][PDATA_CRATE_GHOST])
+        crateKill(eCrate[CRATE_ID])
         crateRemove(iItem)
     }
 
