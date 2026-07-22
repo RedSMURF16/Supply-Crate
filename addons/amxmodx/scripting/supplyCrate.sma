@@ -414,10 +414,10 @@ public plugin_init()
 {
     register_plugin("Supply Crate", PLUGIN_VERSION, "RedSMURF")
 
-    register_clcmd("say /sc",               "cmdMenu", ADMIN_RCON)
-    register_clcmd("say_team /sc",          "cmdMenu", ADMIN_RCON)
-    register_clcmd("say /supplycrate",      "cmdMenu", ADMIN_RCON)
-    register_clcmd("say_team /supplycrate", "cmdMenu", ADMIN_RCON)
+    register_clcmd("say /sc",               "cmdMenu", ADMIN_RCON, "-- Opens the Supply Crate menu.")
+    register_clcmd("say_team /sc",          "cmdMenu", ADMIN_RCON, "-- Opens the Supply Crate menu.")
+    register_clcmd("say /supplycrate",      "cmdMenu", ADMIN_RCON, "-- Opens the Supply Crate menu.")
+    register_clcmd("say_team /supplycrate", "cmdMenu", ADMIN_RCON, "-- Opens the Supply Crate menu.")
     register_concmd("sc_reload",            "cmdReload", ADMIN_RCON, "-- Reloads the configuration file")
     register_concmd("supplycrate_reload",   "cmdReload", ADMIN_RCON, "-- Reloads the configuration file")
 
@@ -486,23 +486,6 @@ public cmdReload(id, iLevel, iCmd)
     console_print(id, "The configuration file has been reloaded successfully !")
 
     return PLUGIN_HANDLED
-}
-
-public client_command(id)
-{
-    if ( !g_ePlayerData[id][PDATA_CRATE_GHOST] )
-        return PLUGIN_CONTINUE
-
-    new szCmd[16]
-    read_argv(0, szCmd, charsmax(szCmd))
-
-    if ( contain(szCmd, "weapon_") != -1
-    || equal(szCmd, "invnext")
-    || equal(szCmd, "invprev")
-    || equal(szCmd, "lastinv") )
-        return PLUGIN_HANDLED
-
-    return PLUGIN_CONTINUE
 }
 
 public eventRoundStart()
