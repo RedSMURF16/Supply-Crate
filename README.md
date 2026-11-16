@@ -17,7 +17,6 @@ Custom setups are saved per map and automatically loaded on every map start.
 - Breakable and explosive crates with custom health, damage stats, and debris gib mechanics
 - Scaling mechanisms via specific factor settings for ammunition and market interaction limits
 - Noclip and intuitive ghost preview tracking for natural alignment with grounds and walls
-- [color=red]Requires AMX Mod X 1.9.0+[/color]
 
 ## 💬 Commands
 - `say /sc` - Opens the crates menu.
@@ -68,3 +67,5 @@ Custom setups are saved per map and automatically loaded on every map start.
 * v2.3: Integrated weapon interaction filter lists, and automated manual precaching for breaking metal sounds and gib models.
 * v2.4: Added FLAG_ACTIVE_PERMANENT flag option and improved round-start logic systems.
 ```
+
+[![Watch on YouTube](https://img.shields.io/badge/YouTube-Watch%20video-FF0000?logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=RUQLqKzN1yk)
