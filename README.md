@@ -18,6 +18,10 @@ Custom setups are saved per map and automatically loaded on every map start.
 - Scaling mechanisms via specific factor settings for ammunition and market interaction limits
 - Noclip and intuitive ghost preview tracking for natural alignment with grounds and walls
 
+## 📋 Requirements
+- ReGameDLL
+- AMX Mod X 1.10+
+
 ## 💬 Commands
 - `say /sc` - Opens the crates menu.
 - `say_team /sc` - Opens the crates menu.
