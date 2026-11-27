@@ -1,7 +1,7 @@
 <h1 align="center">Supply Crate</h1>
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=RUQLqKzN1yk"><img src="https://img.youtube.com/vi/RUQLqKzN1yk/maxresdefault.jpg" alt="Watch on YouTube" width="600"></a>
+  <img src="images/demo.gif" alt="Supply Crate">
 </p>
 
 ## 📝 Description
@@ -17,10 +17,6 @@ Custom setups are saved per map and automatically loaded on every map start.
 - Breakable and explosive crates with custom health, damage stats, and debris gib mechanics
 - Scaling mechanisms via specific factor settings for ammunition and market interaction limits
 - Noclip and intuitive ghost preview tracking for natural alignment with grounds and walls
-
-## 📋 Requirements
-- ReGameDLL
-- AMX Mod X 1.10+
 
 ## 💬 Commands
 - `say /sc` - Opens the crates menu.

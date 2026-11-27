@@ -104,7 +104,6 @@
 #define XO_CBASEPLAYERWEAPON    4
 
 new const PLUGIN_VERSION[]          = "2.4"
-new const Float:DELAY_ON_CONNECT    = 1.0
 new const ERROR_FILE[]              = "SupplyCrate_ERRORS.log"
 
 enum
@@ -522,10 +521,6 @@ stock ReadFile()
 {
     if ( g_bFileWasRead )
     {
-        for ( new id = 1; id <= g_iMaxPlayers; id ++ )
-            if ( is_user_connected(id))
-                UpdateData(id)
-
         ArrayClear(g_eSettings[SETTING_SOUND_METAL])
         ArrayClear(g_aCrateConfig)
         g_iCrateConfig = 0
@@ -812,11 +807,6 @@ stock ReadFile()
     fclose(iFile)
 }
 
-public client_authorized(id)
-{
-    set_task(DELAY_ON_CONNECT, "UpdateData", id)
-}
-
 public client_disconnected(id)
 {
     new eCrate[CRATE], iItem
@@ -831,11 +821,6 @@ public client_disconnected(id)
     g_ePlayerData[id][PDATA_CRATE_USE]    = 0
     g_ePlayerData[id][PDATA_CRATE_ACTION] = false
     g_ePlayerData[id][PDATA_CRATE_MENU]   = 0
-}
-
-public UpdateData(id)
-{
-    g_ePlayerData[id][PDATA_OFFSET] = g_eSettings[SETTING_OFFSET_BASE]
 }
 
 public crateInit()
